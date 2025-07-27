@@ -1,0 +1,23 @@
+.{
+    .name = .clangd,
+    .version = "20.1.8",
+    .minimum_zig_version = "0.14.0",
+    .dependencies = .{
+        .llvm_project = .{
+            .url = "https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-20.1.8.tar.gz",
+            .hash = "N-V-__8AAKYvQGiU8Cqz26l9Udj0Mu1-9ceIcnaFP_xunWhJ",
+        },
+        .zlib = .{
+            .url = "https://github.com/madler/zlib/archive/refs/tags/v1.3.1.tar.gz",
+            .hash = "N-V-__8AAB0eQwD-0MdOEBmz7intriBReIsIDNlukNVoNu6o",
+            .lazy = true,
+        },
+    },
+    .paths = .{
+        "LICENSE",
+        "README.md",
+        "build.zig",
+        "build.zig.zon",
+        "zlib.zig",
+    },
+}
