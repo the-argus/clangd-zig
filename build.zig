@@ -1,9 +1,115 @@
 const std = @import("std");
 const zlib_builder = @import("zlib.zig");
 
+const sources = @import("clangd_sources.zig");
+const Compile = std.Build.Step.Compile;
+const LazyPath = std.Build.LazyPath;
+
+const Options = struct {
+    enable_grpc_reflection: bool,
+    llvm_enable_zlib: bool,
+
+    // clangd specific options
+    clangd_malloc_trim: bool,
+    clangd_tidy_checks: bool,
+    clangd_decision_forest: bool,
+    clangd_enable_remote: bool,
+    clangd_build_xpc: bool,
+};
+
+const Paths = struct {
+    root: LazyPath,
+    // subdirs in the root directory
+    clang_tools_extra: struct {
+        path: LazyPath,
+
+        // subdirs in the clang_tools_extra directory
+        clangd: struct {
+            path: LazyPath,
+            tool: struct { path: LazyPath },
+        },
+
+        include_cleaner: struct {
+            include: struct {
+                path: LazyPath,
+            },
+        },
+    },
+
+    pub fn new(b: *std.Build, root: LazyPath) *const Paths {
+        const out = b.allocator.create(Paths) catch @panic("OOM");
+        const cte = "clang-tools-extra/";
+
+        out.* = Paths{
+            .root = root,
+            .clang_tools_extra = .{
+                .path = root.path(b, cte),
+                .clangd = .{
+                    .path = root.path(b, cte ++ "clangd"),
+                    .tool = .{
+                        .path = root.path(b, cte ++ "clangd/tool"),
+                    },
+                },
+                .include_cleaner = .{
+                    .include = .{
+                        .path = root.path(b, cte ++ "include-cleaner/include"),
+                    },
+                },
+            },
+        };
+
+        return out;
+    }
+};
+
+const Targets = struct {
+    zlib: ?*Compile = null,
+    clangd_lib: ?*Compile = null,
+    clangd_main_lib: ?*Compile = null,
+};
+
+const Context = struct {
+    b: *std.Build,
+    module: *std.Build.Module,
+    targets: Targets,
+    paths: *const Paths,
+    opts: *const Options,
+
+    pub fn new(b: *std.Build, module: *std.Build.Module, llvm_source_root: LazyPath, opts: Options) *Context {
+        const out = b.allocator.create(Context) catch @panic("OOM");
+        const allocated_opts = b.allocator.create(Options) catch @panic("OOM");
+        allocated_opts.* = opts;
+        out.* = .{
+            .b = b,
+            .module = module,
+            .targets = .{},
+            .paths = Paths.new(b, llvm_source_root),
+            .opts = allocated_opts,
+        };
+        return out;
+    }
+};
+
+// this function is the equivalent of clang_target_link_libraries in
+// AddClang.cmake in the llvm source code. right now it just links the libraries
+// but in the future could be used to link the llvm-driver.
+fn clangTargetLinkLibraries(target: *Compile, libs: []*Compile) void {
+    for (libs) |lib| {
+        target.linkLibrary(lib);
+    }
+}
+
+// this function is the equivalent of add_clang_tool in the AddClang.cmake file
+// of the llvm source code. It
+fn addClangTool(b: *std.Build, opts: std.Build.ExecutableOptions) *Compile {
+    const out = b.addExecutable(opts);
+    b.installArtifact(out);
+    return out;
+}
+
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
-    // const optimize = b.standardOptimizeOption(.{});
+    const optimize = b.standardOptimizeOption(.{});
 
     const clangd_malloc_trim = b.option(
         bool,
@@ -34,7 +140,7 @@ pub fn build(b: *std.Build) !void {
         @panic("Linking to gRPC is not currently supported by clangd-zig.");
     }
 
-    const clangd_build_xpc_default = target.result.tag == .macos;
+    const clangd_build_xpc_default = target.result.os.tag == .macos;
 
     const clangd_build_xpc = b.option(
         bool,
@@ -49,27 +155,37 @@ pub fn build(b: *std.Build) !void {
         "Use zlib for compression/decompression. (default: true)",
     ) orelse true;
 
-    const zlib: ?*std.Build.Step.Compile = null;
+    const llvm_project = b.dependency("llvm_project", .{});
+
+    var ctx = Context.new(b, b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+    }), llvm_project.path("."), Options{
+        .llvm_enable_zlib = llvm_enable_zlib,
+        .enable_grpc_reflection = enable_grpc_reflection,
+        .clangd_build_xpc = clangd_build_xpc,
+        .clangd_malloc_trim = clangd_malloc_trim,
+        .clangd_tidy_checks = clangd_tidy_checks,
+        .clangd_enable_remote = clangd_enable_remote,
+        .clangd_decision_forest = clangd_decision_forest,
+    });
+
     if (llvm_enable_zlib) {
         const zlib_dep = b.lazyDependency("zlib", .{}).?;
-        zlib = zlib_builder.build(zlib_dep);
+        ctx.targets.zlib = zlib_builder.build(zlib_dep, ctx.module);
     }
 
-    const llvm_project = b.dependency("llvm_project", .{});
-    const clang_tools_extra_path = llvm_project.path("clang-tools-extra");
-
-    const clangd_lib = b.addLibrary(.{
+    ctx.targets.clangd_lib = b.addLibrary(.{
         .name = "clangd",
         .linkage = .static,
+        .root_module = ctx.module,
     });
-    clangd_lib.linkLibCpp();
-    clangd_lib.addIncludePath(clang_tools_extra_path.path("include-cleaner/include"));
+    ctx.targets.clangd_lib.?.linkLibCpp();
+    ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.clang_tools_extra.include_cleaner.include.path);
     // TODO: configure and install clang-tidy headers, add the build dir as include path
 
-    const clangd_subdir = clang_tools_extra_path.path("clangd");
-
-    clangd_lib.addConfigHeader(b.addConfigHeader(
-        .{ .style = .cmake{clangd_subdir.path(b, "Features.inc.in")} },
+    ctx.targets.clangd_lib.?.addConfigHeader(b.addConfigHeader(
+        .{ .style = .{ .cmake = ctx.paths.clang_tools_extra.clangd.path.path(b, "Features.inc.in") } },
         .{
             .CLANGD_BUILD_XPC = clangd_build_xpc,
             .CLANGD_ENABLE_REMOTE = clangd_enable_remote,
@@ -79,10 +195,9 @@ pub fn build(b: *std.Build) !void {
             .CLANGD_DECISION_FOREST = clangd_decision_forest,
         },
     ));
-
-    clangd_lib.addCSourceFiles(.{
-        .root = clangd_subdir,
-        .files = @import("clangd_sources.zig").cpp_files,
+    ctx.targets.clangd_lib.?.addCSourceFiles(.{
+        .root = ctx.paths.clang_tools_extra.clangd.path,
+        .files = sources.cpp_files,
         .flags = &.{},
         .language = .cpp,
     });
@@ -113,5 +228,14 @@ pub fn build(b: *std.Build) !void {
 
     // TODO: link ALL_CLANG_TIDY_CHECKS libraries if (clangd_tidy_checks)
 
-    b.installArtifact(clangd_lib); // TODO: generate executable
+    ctx.targets.clangd_main_lib = b.addLibrary(.{
+        .name = "clangd_main",
+        .linkage = .static,
+        .root_module = ctx.module,
+    });
+    ctx.targets.clangd_main_lib.?.addCSourceFiles(.{
+        .root = ctx.paths.clang_tools_extra.clangd.tool.path,
+        .files = sources.tool_lib_cpp_files,
+        .flags = &.{},
+    });
 }

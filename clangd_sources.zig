@@ -1,7 +1,16 @@
 //"${COMPLETIONMODEL_SOURCES}",
 // TODO: COMPLETIONMODEL_SOURCES
 
-const cpp_files = &.{
+pub const tool_lib_cpp_files = &.{
+    "ClangdMain.cpp",
+    "Check.cpp",
+};
+
+pub const tool_cpp_files = &.{
+    "ClangdToolMain.cpp",
+};
+
+pub const cpp_files = &.{
     "AST.cpp",
     "ASTSignals.cpp",
     "ClangdLSPServer.cpp",

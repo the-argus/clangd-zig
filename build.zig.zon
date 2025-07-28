@@ -1,5 +1,6 @@
 .{
     .name = .clangd,
+    .fingerprint = 0xc2d068769a7d62db,
     .version = "20.1.8",
     .minimum_zig_version = "0.14.0",
     .dependencies = .{

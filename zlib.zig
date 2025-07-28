@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const srcs = &.{
+const srcs = &[_][]const u8{
     "adler32.c",
     "compress.c",
     "crc32.c",
@@ -22,10 +22,11 @@ const flags = &.{
     "-std=c89",
 };
 
-pub fn build(zlib_dep: *std.Build.Dependency) *std.Build.Step.Compile {
+pub fn build(zlib_dep: *std.Build.Dependency, module: *std.Build.Module) *std.Build.Step.Compile {
     const zlib = zlib_dep.builder.addLibrary(.{
         .name = "z",
         .linkage = .static,
+        .root_module = module,
     });
 
     zlib.linkLibC();
