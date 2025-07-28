@@ -66,27 +66,37 @@ const Targets = struct {
     zlib: ?*Compile = null,
     clangd_lib: ?*Compile = null,
     clangd_main_lib: ?*Compile = null,
+    clangd_exe: ?*Compile = null,
 };
 
 const Context = struct {
     b: *std.Build,
-    module: *std.Build.Module,
+    module_opts: std.Build.Module.CreateOptions,
     targets: Targets,
     paths: *const Paths,
     opts: *const Options,
 
-    pub fn new(b: *std.Build, module: *std.Build.Module, llvm_source_root: LazyPath, opts: Options) *Context {
+    pub fn new(
+        b: *std.Build,
+        module_opts: std.Build.Module.CreateOptions,
+        llvm_source_root: LazyPath,
+        opts: Options,
+    ) *Context {
         const out = b.allocator.create(Context) catch @panic("OOM");
         const allocated_opts = b.allocator.create(Options) catch @panic("OOM");
         allocated_opts.* = opts;
         out.* = .{
             .b = b,
-            .module = module,
+            .module_opts = module_opts,
             .targets = .{},
             .paths = Paths.new(b, llvm_source_root),
             .opts = allocated_opts,
         };
         return out;
+    }
+
+    pub fn makeModule(self: @This()) *std.Build.Module {
+        return self.b.createModule(self.module_opts);
     }
 };
 
@@ -101,9 +111,12 @@ fn clangTargetLinkLibraries(target: *Compile, libs: []*Compile) void {
 
 // this function is the equivalent of add_clang_tool in the AddClang.cmake file
 // of the llvm source code. It
-fn addClangTool(b: *std.Build, opts: std.Build.ExecutableOptions) *Compile {
-    const out = b.addExecutable(opts);
-    b.installArtifact(out);
+fn addClangTool(ctx: *Context, name: []const u8) *Compile {
+    const out = ctx.b.addExecutable(.{
+        .name = name,
+        .root_module = ctx.makeModule(),
+    });
+    ctx.b.installArtifact(out);
     return out;
 }
 
@@ -157,10 +170,10 @@ pub fn build(b: *std.Build) !void {
 
     const llvm_project = b.dependency("llvm_project", .{});
 
-    var ctx = Context.new(b, b.createModule(.{
+    var ctx = Context.new(b, .{
         .target = target,
         .optimize = optimize,
-    }), llvm_project.path("."), Options{
+    }, llvm_project.path("."), Options{
         .llvm_enable_zlib = llvm_enable_zlib,
         .enable_grpc_reflection = enable_grpc_reflection,
         .clangd_build_xpc = clangd_build_xpc,
@@ -172,13 +185,13 @@ pub fn build(b: *std.Build) !void {
 
     if (llvm_enable_zlib) {
         const zlib_dep = b.lazyDependency("zlib", .{}).?;
-        ctx.targets.zlib = zlib_builder.build(zlib_dep, ctx.module);
+        ctx.targets.zlib = zlib_builder.build(zlib_dep, ctx.makeModule());
     }
 
     ctx.targets.clangd_lib = b.addLibrary(.{
-        .name = "clangd",
+        .name = "clangd_lib",
         .linkage = .static,
-        .root_module = ctx.module,
+        .root_module = ctx.makeModule(),
     });
     ctx.targets.clangd_lib.?.linkLibCpp();
     ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.clang_tools_extra.include_cleaner.include.path);
@@ -228,14 +241,23 @@ pub fn build(b: *std.Build) !void {
 
     // TODO: link ALL_CLANG_TIDY_CHECKS libraries if (clangd_tidy_checks)
 
+    // TODO: include generated COMPLETIONMODEL headers and necessary sources
+    // ctx.targets.clangd_lib.?.addIncludePath(...);
+
+    // tool subdir where we build clangd executable ----------------------------
     ctx.targets.clangd_main_lib = b.addLibrary(.{
-        .name = "clangd_main",
+        .name = "clangd_main_lib",
         .linkage = .static,
-        .root_module = ctx.module,
+        .root_module = ctx.makeModule(),
     });
+    ctx.targets.clangd_main_lib.?.linkLibCpp();
     ctx.targets.clangd_main_lib.?.addCSourceFiles(.{
         .root = ctx.paths.clang_tools_extra.clangd.tool.path,
         .files = sources.tool_lib_cpp_files,
         .flags = &.{},
     });
+
+    ctx.targets.clangd_exe = addClangTool(ctx, "clangd");
+    ctx.targets.clangd_exe.?.linkLibrary(ctx.targets.clangd_lib.?);
+    ctx.targets.clangd_exe.?.linkLibrary(ctx.targets.clangd_main_lib.?);
 }
