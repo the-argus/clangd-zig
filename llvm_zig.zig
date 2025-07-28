@@ -45,7 +45,7 @@ pub fn build(ctx: *Context) void {
     } }, .{
         // render_cmake in ConfigHeader niceley interprets these correctly
         .LLVM_ENABLE_DUMP = ctx.opts.llvm_enable_dump,
-        .LLVM_TARGET_TRIPLE = ctx.opts.llvm_default_target_triple,
+        .LLVM_DEFAULT_TARGET_TRIPLE = ctx.opts.llvm_default_target_triple,
         .LLVM_ENABLE_THREADS = ctx.opts.llvm_enable_threads,
         .LLVM_HAS_ATOMICS = true, // zig is clang which has gnu atomics
         // TODO: convert this triple to gnu style triple
@@ -96,7 +96,7 @@ pub fn build(ctx: *Context) void {
         .LLVM_VERSION_MAJOR = @as(i64, version.major),
         .LLVM_VERSION_MINOR = @as(i64, version.minor),
         .LLVM_VERSION_PATCH = @as(i64, version.patch),
-        .LLVM_VERSION_STRING = version_string,
+        .PACKAGE_VERSION = version_string,
         .LLVM_FORCE_ENABLE_STATS = false,
         .LLVM_WITH_Z3 = false,
         .LLVM_ENABLE_CURL = false,
