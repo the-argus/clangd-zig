@@ -4,10 +4,18 @@ const zlib_builder = @import("zlib.zig");
 const sources = @import("clangd_sources.zig");
 const Compile = std.Build.Step.Compile;
 const LazyPath = std.Build.LazyPath;
+pub const version = std.SemanticVersion{ .major = 20, .minor = 1, .patch = 8 };
+pub const version_string = "20.1.8";
 
-const Options = struct {
+pub const Options = struct {
     enable_grpc_reflection: bool,
+
+    // options for llvm subdir
     llvm_enable_zlib: bool,
+    llvm_enable_dump: bool,
+    llvm_default_target_triple: []const u8,
+    llvm_enable_threads: bool,
+    llvm_unreachable_optimize: bool,
 
     // clangd specific options
     clangd_malloc_trim: bool,
@@ -17,7 +25,7 @@ const Options = struct {
     clangd_build_xpc: bool,
 };
 
-const Paths = struct {
+pub const Paths = struct {
     root: LazyPath,
     // subdirs in the root directory
     clang_tools_extra: struct {
@@ -32,6 +40,18 @@ const Paths = struct {
         include_cleaner: struct {
             include: struct {
                 path: LazyPath,
+            },
+        },
+    },
+
+    llvm: struct {
+        include: struct {
+            path: LazyPath,
+            llvm: struct {
+                config: struct {
+                    llvm_private_config_header_path: LazyPath,
+                    llvm_public_config_header_path: LazyPath,
+                },
             },
         },
     },
@@ -56,20 +76,34 @@ const Paths = struct {
                     },
                 },
             },
+            .llvm = .{
+                .include = .{
+                    .path = root.path(b, "llvm/include"),
+                    .llvm = .{ .config = .{
+                        .llvm_public_config_header_path = root.path(b, "llvm/include/llvm/Config/llvm-config.h.cmake"),
+                        .llvm_private_config_header_path = root.path(b, "llvm/include/llvm/Config/config.h.cmake"),
+                    } },
+                },
+            },
         };
 
         return out;
     }
 };
 
-const Targets = struct {
+pub const Targets = struct {
     zlib: ?*Compile = null,
     clangd_lib: ?*Compile = null,
     clangd_main_lib: ?*Compile = null,
     clangd_exe: ?*Compile = null,
+
+    // llvm/include/llvm/Config/llvm-config.h.cmake
+    llvm_public_config_header: ?*std.Build.Step.ConfigHeader = null,
+    // llvm/include/llvm/Config/config.h.cmake
+    llvm_private_config_header: ?*std.Build.Step.ConfigHeader = null,
 };
 
-const Context = struct {
+pub const Context = struct {
     b: *std.Build,
     module_opts: std.Build.Module.CreateOptions,
     targets: Targets,
@@ -153,13 +187,30 @@ pub fn build(b: *std.Build) !void {
         @panic("Linking to gRPC is not currently supported by clangd-zig.");
     }
 
-    const clangd_build_xpc_default = target.result.os.tag == .macos;
+    const llvm_enable_dump = b.option(
+        bool,
+        "llvm_enable_dump",
+        "Enable dump functions even when assertions are disabled. (default: false)",
+    ) orelse false;
+    const llvm_unreachable_optimize = b.option(
+        bool,
+        "llvm_unreachable_optimize",
+        "Optimize llvm_unreachable() as undefined behavior, guaranteed trap when false. (default: true)",
+    ) orelse true;
 
+    const clangd_build_xpc_default = target.result.os.tag == .macos;
     const clangd_build_xpc = b.option(
         bool,
         "clangd_build_xpc",
         "Use gRPC library to enable remote index support for clangd. (default: false, unless on macos darwin)",
     ) orelse clangd_build_xpc_default;
+
+    const llvm_enable_threads_default = target.result.os.tag == .zos;
+    const llvm_enable_threads = b.option(
+        bool,
+        "llvm_enable_threads",
+        "Use threads if available. (default: true, unless on z/OS)",
+    ) orelse llvm_enable_threads_default;
 
     // no FORCE_ON option needed here as we build zlib ourselves
     const llvm_enable_zlib = b.option(
@@ -175,6 +226,11 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     }, llvm_project.path("."), Options{
         .llvm_enable_zlib = llvm_enable_zlib,
+        .llvm_enable_dump = llvm_enable_dump,
+        // TODO: convert this to gnu style triple
+        .llvm_default_target_triple = try target.result.zigTriple(b.allocator),
+        .llvm_enable_threads = llvm_enable_threads,
+        .llvm_unreachable_optimize = llvm_unreachable_optimize,
         .enable_grpc_reflection = enable_grpc_reflection,
         .clangd_build_xpc = clangd_build_xpc,
         .clangd_malloc_trim = clangd_malloc_trim,
@@ -188,6 +244,9 @@ pub fn build(b: *std.Build) !void {
         ctx.targets.zlib = zlib_builder.build(zlib_dep, ctx.makeModule());
     }
 
+    // fill out the components of ctx.targets which begin with "llvm_"
+    @import("llvm.zig").build(ctx);
+
     ctx.targets.clangd_lib = b.addLibrary(.{
         .name = "clangd_lib",
         .linkage = .static,
@@ -195,6 +254,8 @@ pub fn build(b: *std.Build) !void {
     });
     ctx.targets.clangd_lib.?.linkLibCpp();
     ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.clang_tools_extra.include_cleaner.include.path);
+    ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.llvm.include.path);
+    ctx.targets.clangd_lib.?.addConfigHeader(ctx.targets.llvm_public_config_header.?);
     // TODO: configure and install clang-tidy headers, add the build dir as include path
 
     ctx.targets.clangd_lib.?.addConfigHeader(b.addConfigHeader(
@@ -245,6 +306,7 @@ pub fn build(b: *std.Build) !void {
     // ctx.targets.clangd_lib.?.addIncludePath(...);
 
     // tool subdir where we build clangd executable ----------------------------
+
     ctx.targets.clangd_main_lib = b.addLibrary(.{
         .name = "clangd_main_lib",
         .linkage = .static,
@@ -256,6 +318,8 @@ pub fn build(b: *std.Build) !void {
         .files = sources.tool_lib_cpp_files,
         .flags = &.{},
     });
+    ctx.targets.clangd_main_lib.?.addIncludePath(ctx.paths.llvm.include.path);
+    ctx.targets.clangd_main_lib.?.addConfigHeader(ctx.targets.llvm_public_config_header.?);
 
     ctx.targets.clangd_exe = addClangTool(ctx, "clangd");
     ctx.targets.clangd_exe.?.linkLibrary(ctx.targets.clangd_lib.?);
