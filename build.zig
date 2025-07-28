@@ -245,7 +245,7 @@ pub fn build(b: *std.Build) !void {
     }
 
     // fill out the components of ctx.targets which begin with "llvm_"
-    @import("llvm.zig").build(ctx);
+    @import("llvm_zig.zig").build(ctx);
 
     ctx.targets.clangd_lib = b.addLibrary(.{
         .name = "clangd_lib",
