@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const zlib_builder = @import("zlib.zig");
 
 const sources = @import("clangd_sources.zig");
@@ -16,6 +17,8 @@ pub const Options = struct {
     llvm_default_target_triple: []const u8,
     llvm_enable_threads: bool,
     llvm_unreachable_optimize: bool,
+    llvm_reverse_iteration: bool,
+    llvm_abi_breaking_checks: ABIBreakingChecks,
 
     // clangd specific options
     clangd_malloc_trim: bool,
@@ -23,6 +26,44 @@ pub const Options = struct {
     clangd_decision_forest: bool,
     clangd_enable_remote: bool,
     clangd_build_xpc: bool,
+};
+
+pub const ConfigHeader = struct {
+    output_include_path: []const u8,
+    unconfigured_header_path: LazyPath,
+
+    const CHOptions = std.Build.Step.ConfigHeader.Options;
+
+    pub fn makeOptions(self: *const @This()) CHOptions {
+        return CHOptions{
+            .style = .{ .cmake = self.unconfigured_header_path },
+            .include_path = self.output_include_path,
+        };
+    }
+};
+
+pub const RunArtifactResultFile = struct {
+    outputted_file: std.Build.LazyPath,
+    step: *std.Build.Step,
+};
+
+pub const ABIBreakingChecks = enum {
+    WITH_ASSERTS,
+    FORCE_ON,
+    FORCE_OFF,
+
+    pub const desc = "Used to decide if LLVM should be built with ABI " ++
+        "breaking checks or not.  Allowed values are `WITH_ASSERTS` " ++
+        "(default), `FORCE_ON` and `FORCE_OFF`.  `WITH_ASSERTS` turns " ++
+        "on ABI breaking checks in an assertion enabled build.  " ++
+        "`FORCE_ON` (`FORCE_OFF`) turns them on (off) irrespective of " ++
+        "whether normal (`NDEBUG`-based) assertions are enabled or not.  " ++
+        "A version of LLVM built with ABI breaking checks is not ABI " ++
+        "compatible with a version built without it.";
+
+    pub fn default() @This() {
+        return .WITH_ASSERTS;
+    }
 };
 
 pub const Paths = struct {
@@ -44,13 +85,31 @@ pub const Paths = struct {
         },
     },
 
+    clang: struct {
+        include: struct {
+            path: LazyPath,
+            clang: struct {
+                basic: struct {
+                    path: LazyPath,
+                    attr_td: LazyPath,
+                },
+            },
+        },
+        utils: struct {
+            tablegen: struct {
+                path: LazyPath,
+            },
+        },
+    },
+
     llvm: struct {
         include: struct {
             path: LazyPath,
             llvm: struct {
                 config: struct {
-                    llvm_private_config_header_path: LazyPath,
-                    llvm_public_config_header_path: LazyPath,
+                    llvm_private_config_header: ConfigHeader,
+                    llvm_public_config_header: ConfigHeader,
+                    llvm_abi_breaking_config_header: ConfigHeader,
                 },
             },
         },
@@ -76,12 +135,38 @@ pub const Paths = struct {
                     },
                 },
             },
+            .clang = .{
+                .include = .{
+                    .path = root.path(b, "clang/include"),
+                    .clang = .{
+                        .basic = .{
+                            .path = root.path(b, "clang/include/clang/Basic"),
+                            .attr_td = root.path(b, "clang/include/clang/Basic/Attr.td"),
+                        },
+                    },
+                },
+                .utils = .{
+                    .tablegen = .{
+                        .path = root.path(b, "clang/utils/TableGen"),
+                    },
+                },
+            },
             .llvm = .{
                 .include = .{
                     .path = root.path(b, "llvm/include"),
                     .llvm = .{ .config = .{
-                        .llvm_public_config_header_path = root.path(b, "llvm/include/llvm/Config/llvm-config.h.cmake"),
-                        .llvm_private_config_header_path = root.path(b, "llvm/include/llvm/Config/config.h.cmake"),
+                        .llvm_public_config_header = ConfigHeader{
+                            .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/llvm-config.h.cmake"),
+                            .output_include_path = "llvm/Config/llvm-config.h",
+                        },
+                        .llvm_private_config_header = ConfigHeader{
+                            .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/config.h.cmake"),
+                            .output_include_path = "llvm/Config/config.h",
+                        },
+                        .llvm_abi_breaking_config_header = ConfigHeader{
+                            .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/abi-breaking.h.cmake"),
+                            .output_include_path = "llvm/Config/abi-breaking.h",
+                        },
                     } },
                 },
             },
@@ -96,11 +181,15 @@ pub const Targets = struct {
     clangd_lib: ?*Compile = null,
     clangd_main_lib: ?*Compile = null,
     clangd_exe: ?*Compile = null,
+    llvm_tblgen_exe: ?*Compile = null,
 
     // llvm/include/llvm/Config/llvm-config.h.cmake
     llvm_public_config_header: ?*std.Build.Step.ConfigHeader = null,
     // llvm/include/llvm/Config/config.h.cmake
     llvm_private_config_header: ?*std.Build.Step.ConfigHeader = null,
+    // llvm/include/llvm/Config/abi-breaking.h.cmake
+    llvm_abi_breaking_config_header: ?*std.Build.Step.ConfigHeader = null,
+    llvm_regular_keyword_attr_info_inc: ?RunArtifactResultFile = null,
 };
 
 pub const Context = struct {
@@ -131,6 +220,14 @@ pub const Context = struct {
 
     pub fn makeModule(self: @This()) *std.Build.Module {
         return self.b.createModule(self.module_opts);
+    }
+
+    /// Module which targets the host system
+    pub fn makeHostModule(self: @This()) *std.Build.Module {
+        var opts_copy = self.module_opts;
+        opts_copy.target.?.query = .{};
+        opts_copy.target.?.result = builtin.target;
+        return self.b.createModule(opts_copy);
     }
 };
 
@@ -211,6 +308,16 @@ pub fn build(b: *std.Build) !void {
         "llvm_enable_threads",
         "Use threads if available. (default: true, unless on z/OS)",
     ) orelse llvm_enable_threads_default;
+    const llvm_reverse_iteration = b.option(
+        bool,
+        "llvm_reverse_iteration",
+        "If enabled, all supported unordered llvm containers would be iterated in reverse order. This is useful for uncovering non-determinism caused by iteration of unordered containers. (default: false)",
+    ) orelse false;
+    const llvm_abi_breaking_checks = b.option(
+        ABIBreakingChecks,
+        "llvm_abi_breaking_checks",
+        ABIBreakingChecks.desc,
+    ) orelse ABIBreakingChecks.default();
 
     // no FORCE_ON option needed here as we build zlib ourselves
     const llvm_enable_zlib = b.option(
@@ -231,6 +338,8 @@ pub fn build(b: *std.Build) !void {
         .llvm_default_target_triple = try target.result.zigTriple(b.allocator),
         .llvm_enable_threads = llvm_enable_threads,
         .llvm_unreachable_optimize = llvm_unreachable_optimize,
+        .llvm_reverse_iteration = llvm_reverse_iteration,
+        .llvm_abi_breaking_checks = llvm_abi_breaking_checks,
         .enable_grpc_reflection = enable_grpc_reflection,
         .clangd_build_xpc = clangd_build_xpc,
         .clangd_malloc_trim = clangd_malloc_trim,
@@ -254,8 +363,14 @@ pub fn build(b: *std.Build) !void {
     });
     ctx.targets.clangd_lib.?.linkLibCpp();
     ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.clang_tools_extra.include_cleaner.include.path);
+    ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.clang_tools_extra.clangd.path);
+    ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.clang.include.path);
+    ctx.targets.clangd_lib.?.addIncludePath(ctx.targets.llvm_regular_keyword_attr_info_inc.?.outputted_file);
+    // TODO: is this necessary? its already a generated file and should keep track of dependencies
+    ctx.targets.clangd_lib.?.step.dependOn(ctx.targets.llvm_regular_keyword_attr_info_inc.?.step);
     ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.llvm.include.path);
     ctx.targets.clangd_lib.?.addConfigHeader(ctx.targets.llvm_public_config_header.?);
+    ctx.targets.clangd_lib.?.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
     // TODO: configure and install clang-tidy headers, add the build dir as include path
 
     ctx.targets.clangd_lib.?.addConfigHeader(b.addConfigHeader(
@@ -320,6 +435,7 @@ pub fn build(b: *std.Build) !void {
     });
     ctx.targets.clangd_main_lib.?.addIncludePath(ctx.paths.llvm.include.path);
     ctx.targets.clangd_main_lib.?.addConfigHeader(ctx.targets.llvm_public_config_header.?);
+    ctx.targets.clangd_main_lib.?.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
 
     ctx.targets.clangd_exe = addClangTool(ctx, "clangd");
     ctx.targets.clangd_exe.?.linkLibrary(ctx.targets.clangd_lib.?);

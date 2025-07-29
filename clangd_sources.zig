@@ -95,3 +95,27 @@ pub const cpp_files = &.{
     "refactor/Rename.cpp",
     "refactor/Tweak.cpp",
 };
+
+pub const tablegen_cpp_files = &.{
+    "ASTTableGen.cpp",
+    "ClangASTNodesEmitter.cpp",
+    "ClangASTPropertiesEmitter.cpp",
+    "ClangAttrEmitter.cpp",
+    "ClangBuiltinsEmitter.cpp",
+    "ClangCommentCommandInfoEmitter.cpp",
+    "ClangCommentHTMLNamedCharacterReferenceEmitter.cpp",
+    "ClangCommentHTMLTagsEmitter.cpp",
+    "ClangDataCollectorsEmitter.cpp",
+    "ClangDiagnosticsEmitter.cpp",
+    "ClangOpcodesEmitter.cpp",
+    "ClangOpenCLBuiltinEmitter.cpp",
+    "ClangOptionDocEmitter.cpp",
+    "ClangSACheckersEmitter.cpp",
+    "ClangSyntaxEmitter.cpp",
+    "ClangTypeNodesEmitter.cpp",
+    "MveEmitter.cpp",
+    "NeonEmitter.cpp",
+    "RISCVVEmitter.cpp",
+    "SveEmitter.cpp",
+    "TableGen.cpp",
+};

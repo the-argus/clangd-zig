@@ -2,6 +2,8 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const Context = @import("build.zig").Context;
+const RunArtifactResultFile = @import("build.zig").RunArtifactResultFile;
+const ABIBreakingChecks = @import("build.zig").ABIBreakingChecks;
 const version = @import("build.zig").version;
 const version_string = @import("build.zig").version_string;
 
@@ -37,12 +39,77 @@ fn llvmTargetToolString(ctx: *Context, str: []const u8) []const u8 {
     return ctx.b.fmt("LLVMInitialize{s}{s}", .{ llvm_native_arch, str });
 }
 
+const TableGenOptions = struct {
+    source_file: std.Build.LazyPath,
+    output_filename: []const u8,
+    args: []const []const u8 = &.{},
+    // these directories will have -I prefixing them and then be passed as args
+    include_dir_args: []const std.Build.LazyPath = &.{},
+};
+
+fn clangTablegen(
+    ctx: *Context,
+    options: TableGenOptions,
+) RunArtifactResultFile {
+    const tblgen_invocation = ctx.b.addRunArtifact(ctx.targets.llvm_tblgen_exe.?);
+    tblgen_invocation.addFileArg(options.source_file);
+    const generated_file = tblgen_invocation.addPrefixedOutputFileArg("-o", options.output_filename);
+    tblgen_invocation.addArgs(options.args);
+    for (options.include_dir_args) |include_dir| {
+        tblgen_invocation.addPrefixedDirectoryArg("-I", include_dir);
+    }
+    return RunArtifactResultFile{
+        .outputted_file = generated_file,
+        .step = &tblgen_invocation.step,
+    };
+}
+
 /// Fills out all the fields in Context.targets that start with llvm_*, pulling
 /// from Context.options
 pub fn build(ctx: *Context) void {
-    ctx.targets.llvm_public_config_header = ctx.b.addConfigHeader(.{ .style = .{
-        .cmake = ctx.paths.llvm.include.llvm.config.llvm_public_config_header_path,
-    } }, .{
+    // create tablegen executable artifact so fn clangTablegen can use it
+    ctx.targets.llvm_tblgen_exe = ctx.b.addExecutable(.{
+        .name = "tblgen",
+        .root_module = ctx.makeHostModule(), // this exe runs on the host
+    });
+    ctx.targets.llvm_tblgen_exe.?.addCSourceFiles(.{
+        .root = ctx.paths.clang.utils.tablegen.path,
+        .files = @import("clangd_sources.zig").tablegen_cpp_files,
+        .flags = &.{},
+        .language = .cpp,
+    });
+    ctx.targets.llvm_tblgen_exe.?.linkLibCpp();
+
+    // generate RegularKeywordAttrInfo.inc
+    const regular_keyword_attr_info_result_file = clangTablegen(ctx, .{
+        .output_filename = "RegularKeywordAttrInfo.inc",
+        .args = &.{"-gen-clang-regular-keyword-attr-info"},
+        .include_dir_args = &.{ctx.paths.clang.include.path},
+        .source_file = ctx.paths.clang.include.clang.basic.attr_td,
+    });
+    // put RegularKeywordAttrInfo.inc into clang/Basic
+    const regular_keyword_attr_info_with_subdir = ctx.b.addWriteFiles();
+    ctx.targets.llvm_regular_keyword_attr_info_inc = .{
+        .step = &regular_keyword_attr_info_with_subdir.step,
+        .outputted_file = regular_keyword_attr_info_with_subdir.addCopyFile(
+            regular_keyword_attr_info_result_file.outputted_file,
+            "clang/Basic/RegularKeywordAttrInfo.inc",
+        ),
+    };
+
+    ctx.targets.llvm_regular_keyword_attr_info_inc = regular_keyword_attr_info_result_file;
+
+    const abi_breaking_opts = ctx.paths.llvm.include.llvm.config.llvm_abi_breaking_config_header.makeOptions();
+    ctx.targets.llvm_abi_breaking_config_header = ctx.b.addConfigHeader(abi_breaking_opts, .{
+        .LLVM_ENABLE_REVERSE_ITERATION = ctx.opts.llvm_reverse_iteration,
+        .LLVM_ENABLE_ABI_BREAKING_CHECKS = std.enums.tagName(
+            ABIBreakingChecks,
+            ctx.opts.llvm_abi_breaking_checks,
+        ),
+    });
+
+    const public_opts = ctx.paths.llvm.include.llvm.config.llvm_public_config_header.makeOptions();
+    ctx.targets.llvm_public_config_header = ctx.b.addConfigHeader(public_opts, .{
         // render_cmake in ConfigHeader niceley interprets these correctly
         .LLVM_ENABLE_DUMP = ctx.opts.llvm_enable_dump,
         .LLVM_DEFAULT_TARGET_TRIPLE = ctx.opts.llvm_default_target_triple,
