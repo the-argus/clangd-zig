@@ -113,6 +113,16 @@ pub const Paths = struct {
                 },
             },
         },
+
+        lib: struct {
+            path: LazyPath,
+            demangle: struct {
+                path: LazyPath,
+            },
+            support: struct {
+                path: LazyPath,
+            },
+        },
     },
 
     pub fn new(b: *std.Build, root: LazyPath) *const Paths {
@@ -169,6 +179,15 @@ pub const Paths = struct {
                         },
                     } },
                 },
+                .lib = .{
+                    .path = root.path(b, "llvm/lib"),
+                    .demangle = .{
+                        .path = root.path(b, "llvm/lib/Demangle"),
+                    },
+                    .support = .{
+                        .path = root.path(b, "llvm/lib/Support"),
+                    },
+                },
             },
         };
 
@@ -190,6 +209,9 @@ pub const Targets = struct {
     // llvm/include/llvm/Config/abi-breaking.h.cmake
     llvm_abi_breaking_config_header: ?*std.Build.Step.ConfigHeader = null,
     llvm_regular_keyword_attr_info_inc: ?RunArtifactResultFile = null,
+
+    llvm_component_demangle_lib: ?*Compile = null,
+    llvm_component_support_lib: ?*Compile = null,
 };
 
 pub const Context = struct {
@@ -225,8 +247,7 @@ pub const Context = struct {
     /// Module which targets the host system
     pub fn makeHostModule(self: @This()) *std.Build.Module {
         var opts_copy = self.module_opts;
-        opts_copy.target.?.query = .{};
-        opts_copy.target.?.result = builtin.target;
+        opts_copy.target = self.b.graph.host;
         return self.b.createModule(opts_copy);
     }
 };
@@ -366,8 +387,6 @@ pub fn build(b: *std.Build) !void {
     ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.clang_tools_extra.clangd.path);
     ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.clang.include.path);
     ctx.targets.clangd_lib.?.addIncludePath(ctx.targets.llvm_regular_keyword_attr_info_inc.?.outputted_file);
-    // TODO: is this necessary? its already a generated file and should keep track of dependencies
-    ctx.targets.clangd_lib.?.step.dependOn(ctx.targets.llvm_regular_keyword_attr_info_inc.?.step);
     ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.llvm.include.path);
     ctx.targets.clangd_lib.?.addConfigHeader(ctx.targets.llvm_public_config_header.?);
     ctx.targets.clangd_lib.?.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);

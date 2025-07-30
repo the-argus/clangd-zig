@@ -6,6 +6,7 @@ const RunArtifactResultFile = @import("build.zig").RunArtifactResultFile;
 const ABIBreakingChecks = @import("build.zig").ABIBreakingChecks;
 const version = @import("build.zig").version;
 const version_string = @import("build.zig").version_string;
+const sources = @import("clangd_sources.zig");
 
 const llvm_all_targets = &[_][]const u8{
     "AArch64",
@@ -67,38 +68,6 @@ fn clangTablegen(
 /// Fills out all the fields in Context.targets that start with llvm_*, pulling
 /// from Context.options
 pub fn build(ctx: *Context) void {
-    // create tablegen executable artifact so fn clangTablegen can use it
-    ctx.targets.llvm_tblgen_exe = ctx.b.addExecutable(.{
-        .name = "tblgen",
-        .root_module = ctx.makeHostModule(), // this exe runs on the host
-    });
-    ctx.targets.llvm_tblgen_exe.?.addCSourceFiles(.{
-        .root = ctx.paths.clang.utils.tablegen.path,
-        .files = @import("clangd_sources.zig").tablegen_cpp_files,
-        .flags = &.{},
-        .language = .cpp,
-    });
-    ctx.targets.llvm_tblgen_exe.?.linkLibCpp();
-
-    // generate RegularKeywordAttrInfo.inc
-    const regular_keyword_attr_info_result_file = clangTablegen(ctx, .{
-        .output_filename = "RegularKeywordAttrInfo.inc",
-        .args = &.{"-gen-clang-regular-keyword-attr-info"},
-        .include_dir_args = &.{ctx.paths.clang.include.path},
-        .source_file = ctx.paths.clang.include.clang.basic.attr_td,
-    });
-    // put RegularKeywordAttrInfo.inc into clang/Basic
-    const regular_keyword_attr_info_with_subdir = ctx.b.addWriteFiles();
-    ctx.targets.llvm_regular_keyword_attr_info_inc = .{
-        .step = &regular_keyword_attr_info_with_subdir.step,
-        .outputted_file = regular_keyword_attr_info_with_subdir.addCopyFile(
-            regular_keyword_attr_info_result_file.outputted_file,
-            "clang/Basic/RegularKeywordAttrInfo.inc",
-        ),
-    };
-
-    ctx.targets.llvm_regular_keyword_attr_info_inc = regular_keyword_attr_info_result_file;
-
     const abi_breaking_opts = ctx.paths.llvm.include.llvm.config.llvm_abi_breaking_config_header.makeOptions();
     ctx.targets.llvm_abi_breaking_config_header = ctx.b.addConfigHeader(abi_breaking_opts, .{
         .LLVM_ENABLE_REVERSE_ITERATION = ctx.opts.llvm_reverse_iteration,
@@ -169,7 +138,7 @@ pub fn build(ctx: *Context) void {
         .LLVM_ENABLE_CURL = false,
         .LLVM_ENABLE_HTTPLIB = false,
         .LLVM_ENABLE_ZLIB = ctx.opts.llvm_enable_zlib,
-        .LLVM_ENABLE_ZSTD = false,
+        .LLVM_ENABLE_ZSTD = false, // TODO: this is on by default in llvm
         .LLVM_HAVE_TFLITE = false,
         .HAVE_SYSEXITS_H = true,
         .LLVM_BUILD_LLVM_DYLIB = false,
@@ -179,11 +148,61 @@ pub fn build(ctx: *Context) void {
         .LLVM_ENABLE_PLUGINS = false,
         .LLVM_HAS_LOGF128 = false,
     });
+
+    ctx.targets.llvm_component_demangle_lib = ctx.b.addLibrary(.{
+        .name = "demangle",
+        .root_module = ctx.makeModule(),
+        .linkage = .static,
+    });
+    ctx.targets.llvm_component_demangle_lib.?.addCSourceFiles(.{
+        .root = ctx.paths.llvm.lib.demangle.path,
+        .files = sources.demangle_cpp_files,
+        .language = .cpp,
+        .flags = &.{},
+    });
+    ctx.targets.llvm_component_demangle_lib.?.linkLibCpp();
+    ctx.targets.llvm_component_demangle_lib.?.addIncludePath(ctx.paths.llvm.include.path);
+
+    // create tablegen executable artifact so fn clangTablegen can use it
+    ctx.targets.llvm_tblgen_exe = ctx.b.addExecutable(.{
+        .name = "tblgen",
+        .root_module = ctx.makeHostModule(), // this exe runs on the host
+    });
+    ctx.targets.llvm_tblgen_exe.?.addCSourceFiles(.{
+        .root = ctx.paths.clang.utils.tablegen.path,
+        .files = sources.tablegen_cpp_files,
+        .flags = &.{},
+        .language = .cpp,
+    });
+    ctx.targets.llvm_tblgen_exe.?.linkLibCpp();
+    ctx.targets.llvm_tblgen_exe.?.addIncludePath(ctx.paths.llvm.include.path);
+    ctx.targets.llvm_tblgen_exe.?.addIncludePath(ctx.paths.clang.include.path);
+    ctx.targets.llvm_tblgen_exe.?.addConfigHeader(ctx.targets.llvm_public_config_header.?);
+    ctx.targets.llvm_tblgen_exe.?.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
+
+    // generate RegularKeywordAttrInfo.inc
+    const regular_keyword_attr_info_result_file = clangTablegen(ctx, .{
+        .output_filename = "RegularKeywordAttrInfo.inc",
+        .args = &.{"-gen-clang-regular-keyword-attr-info"},
+        .include_dir_args = &.{ctx.paths.clang.include.path},
+        .source_file = ctx.paths.clang.include.clang.basic.attr_td,
+    });
+    // put RegularKeywordAttrInfo.inc into clang/Basic
+    const regular_keyword_attr_info_with_subdir = ctx.b.addWriteFiles();
+    ctx.targets.llvm_regular_keyword_attr_info_inc = .{
+        .step = &regular_keyword_attr_info_with_subdir.step,
+        .outputted_file = regular_keyword_attr_info_with_subdir.addCopyFile(
+            regular_keyword_attr_info_result_file.outputted_file,
+            "clang/Basic/RegularKeywordAttrInfo.inc",
+        ),
+    };
+
+    ctx.targets.llvm_regular_keyword_attr_info_inc = regular_keyword_attr_info_result_file;
 }
 
-fn osIsUnixLike(os: std.Target.Os.Tag) bool {
+pub fn osIsUnixLike(os: std.Target.Os.Tag) bool {
     return switch (os) {
-        .linux, .macos, .fuchsia => true,
+        .linux, .macos, .fuchsia, .haiku => true,
         else => false,
     };
 }

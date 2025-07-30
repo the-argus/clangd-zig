@@ -119,3 +119,12 @@ pub const tablegen_cpp_files = &.{
     "SveEmitter.cpp",
     "TableGen.cpp",
 };
+
+pub const demangle_cpp_files = &.{
+    "Demangle.cpp",
+    "ItaniumDemangle.cpp",
+    "MicrosoftDemangle.cpp",
+    "MicrosoftDemangleNodes.cpp",
+    "RustDemangle.cpp",
+    "DLangDemangle.cpp",
+};
