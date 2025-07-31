@@ -4,24 +4,19 @@
 const std = @import("std");
 
 const Context = @import("build.zig").Context;
-const osIsUnixLike = @import("llvm_zig.zig").osIsUnixLike;
 
 pub fn build(ctx: *Context) void {
-    ctx.targets.llvm_component_support_lib = ctx.b.addLibrary(.{
+    ctx.targets.llvm_host_component_support_lib = ctx.b.addLibrary(.{
         .name = "support",
         .root_module = ctx.makeModule(),
         .linkage = .static,
     });
 
-    ctx.targets.llvm_component_support_lib.?.addCSourceFiles(.{
-        .language = .cpp,
-        .files = cpp_files,
-        .root = ctx.paths.llvm.lib.support.path,
-        .flags = &.{},
-    });
+    var flags = ctx.makeFlags();
 
-    const target_os_tag = ctx.module_opts.target.?.result.os.tag;
-    const host_os_tag = ctx.b.graph.host.result.os;
+    // const target_os_tag = ctx.module_opts.target.?.result.os.tag;
+    const host_os_tag = ctx.b.graph.host.result.os.tag;
+    const target_os_tag = host_os_tag; // just building for host for now, for use in tblgen
     if (target_os_tag == .windows) {
         const libs_windows = &[_][]const u8{
             "psapi",
@@ -33,12 +28,49 @@ pub fn build(ctx: *Context) void {
             "ntdll",
         };
         for (libs_windows) |lib| {
-            ctx.targets.llvm_component_support_lib.?.linkSystemLibrary(lib);
+            ctx.targets.llvm_host_component_support_lib.?.linkSystemLibrary(lib);
         }
-    } else if (osIsUnixLike(host_os_tag)) {
+    } else if (Context.osIsUnixLike(host_os_tag)) {
         // link llvm atomic lib
         // link llvm pthread lib
+
+        if (Context.osIsUnixLike(target_os_tag) and target_os_tag != .haiku) {
+            ctx.targets.llvm_host_component_support_lib.?.linkSystemLibrary("m");
+        }
+        if (target_os_tag == .haiku) {
+            ctx.targets.llvm_host_component_support_lib.?.linkSystemLibrary("bsd");
+            ctx.targets.llvm_host_component_support_lib.?.linkSystemLibrary("network");
+            flags.append("-D_BSD_SOURCE") catch @panic("OOM");
+        }
+        if (target_os_tag == .fuchsia) {
+            ctx.targets.llvm_host_component_support_lib.?.linkSystemLibrary("zircon");
+        }
     }
+
+    // TODO: Z3 link libraries here if enabled
+
+    ctx.targets.llvm_host_component_support_lib.?.addCSourceFiles(.{
+        .language = .cpp,
+        .files = cpp_files,
+        .root = ctx.paths.llvm.lib.support.path,
+        .flags = flags.toOwnedSlice() catch @panic("OOM"),
+    });
+    ctx.targets.llvm_host_component_support_lib.?.addCSourceFiles(.{
+        .language = .c,
+        .files = c_files,
+        .root = ctx.paths.llvm.lib.support.path,
+        .flags = flags.toOwnedSlice() catch @panic("OOM"),
+    });
+    ctx.targets.llvm_host_component_support_lib.?.addIncludePath(ctx.paths.llvm.include.path);
+    ctx.targets.llvm_host_component_support_lib.?.addIncludePath(ctx.paths.llvm.include.llvm.support.path);
+    ctx.targets.llvm_host_component_support_lib.?.addIncludePath(ctx.paths.llvm.include.llvm.adt.path);
+    ctx.targets.llvm_host_component_support_lib.?.addIncludePath(ctx.paths.llvm.lib.support.windows.path);
+    ctx.targets.llvm_host_component_support_lib.?.addIncludePath(ctx.paths.llvm.lib.support.unix.path);
+    ctx.targets.llvm_host_component_support_lib.?.addConfigHeader(ctx.targets.llvm_public_config_header.?);
+    ctx.targets.llvm_host_component_support_lib.?.addConfigHeader(ctx.targets.llvm_private_config_header.?);
+    ctx.targets.llvm_host_component_support_lib.?.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
+    ctx.targets.llvm_host_component_support_lib.?.linkLibrary(ctx.targets.llvm_host_component_demangle_lib.?);
+    ctx.targets.llvm_host_component_support_lib.?.linkLibrary(ctx.targets.zlib.?);
 }
 
 const cpp_files = &.{

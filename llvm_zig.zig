@@ -125,7 +125,7 @@ pub fn build(ctx: *Context) void {
         .LLVM_HAS_M68K_TARGET = false,
         .LLVM_HAS_XTENSA_TARGET = false,
 
-        .LLVM_ON_UNIX = osIsUnixLike(builtin.os.tag),
+        .LLVM_ON_UNIX = Context.osIsUnixLike(builtin.os.tag),
         .LLVM_USE_INTEL_JITEVENTS = false,
         .LLVM_USE_OPROFILE = false,
         .LLVM_USE_PERF = false,
@@ -148,20 +148,121 @@ pub fn build(ctx: *Context) void {
         .LLVM_ENABLE_PLUGINS = false,
         .LLVM_HAS_LOGF128 = false,
     });
+    const private_opts = ctx.paths.llvm.include.llvm.config.llvm_private_config_header.makeOptions();
+    const os = ctx.module_opts.target.?.result.os.tag;
+    ctx.targets.llvm_private_config_header = ctx.b.addConfigHeader(private_opts, .{
+        .BUG_REPORT_URL = "https://github.com/llvm/llvm-project/issues/",
+        .ENABLE_BACKTRACES = false,
+        .ENABLE_CRASH_OVERRIDES = false,
+        .LLVM_ENABLE_CRASH_DUMPS = false,
+        .ENABLE_DEBUGLOC_COVERAGE_TRACKING = false,
+        .LLVM_WINDOWS_PREFER_FORWARD_SLASH = false,
+        .HAVE_BACKTRACE = false,
+        .BACKTRACE_HEADER = "",
+        .HAVE_CRASHREPORTERCLIENT_H = false,
+        .HAVE_CRASHREPORTER_INFO = false,
+        .HAVE_DECL_ARC4RANDOM = false,
+        .HAVE_DECL_FE_ALL_EXCEPT = false,
+        .HAVE_DECL_FE_INEXACT = false,
+        .HAVE_DECL_STRERROR_S = false,
+        .HAVE_DLOPEN = false,
+        .HAVE_REGISTER_FRAME = false,
+        .HAVE_DEREGISTER_FRAME = false,
+        .HAVE_UNW_ADD_DYNAMIC_FDE = false,
+        .HAVE_FFI_CALL = false, // libffi
+        .HAVE_FFI_FFI_H = false,
+        .HAVE_FFI_H = false,
+        .HAVE_FUTIMENS = false,
+        .HAVE_FUTIMES = false,
+        .HAVE_GETPAGESIZE = false,
+        .HAVE_GETRUSAGE = false,
+        .HAVE_ISATTY = false,
+        .HAVE_LIBEDIT = false,
+        .HAVE_LIBPFM = false,
+        .LIBPFM_HAS_FIELD_CYCLES = false,
+        .HAVE_LIBPSAPI = false,
+        .HAVE_LIBPTHREAD = true, // TODO: zig should always provide this? yes?
+        .HAVE_PTHREAD_GETNAME_NP = false,
+        .HAVE_PTHREAD_SETNAME_NP = false,
+        .HAVE_PTHREAD_GET_NAME_NP = false,
+        .HAVE_PTHREAD_SET_NAME_NP = false,
+        .HAVE_MACH_MACH_H = Context.osHasHeader(os, .MACH_MACH_H),
+        .HAVE_MALLCTL = false,
+        .HAVE_MALLINFO = false,
+        .HAVE_MALLINFO2 = false,
+        .HAVE_MALLOC_MALLOC_H = Context.osHasHeader(os, .MALLOC_MALLOC_H),
+        .HAVE_MALLOC_ZONE_STATISTICS = false,
+        .HAVE_POSIX_SPAWN = false,
+        .HAVE_PREAD = false,
+        .HAVE_PTHREAD_H = Context.osHasHeader(os, .PTHREAD_H),
+        .HAVE_PTHREAD_MUTEX_LOCK = true,
+        .HAVE_PTHREAD_RWLOCK_INIT = true,
+        .HAVE_SBRK = true, // i hope so
+        .HAVE_SETENV = true,
+        .HAVE_SIGALTSTACK = false,
+        .HAVE_STRERROR_R = false,
+        .HAVE_SYSCONF = false,
+        .HAVE_SYS_MMAN_H = Context.osHasHeader(os, .SYS_MMAN_H),
+        .HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC = false,
+        .HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC = false,
+        .HAVE_UNISTD_H = Context.osHasHeader(os, .UNISTD_H),
+        .HAVE_VALGRIND_VALGRIND_H = false,
+        .HAVE__ALLOCA = false,
+        .HAVE___ALLOCA = false,
+        .HAVE__CHSIZE_S = false,
+        .HAVE__UNWIND_BACKTRACE = false,
+        .HAVE___ASHLDI3 = false,
+        .HAVE___ASHRDI3 = false,
+        .HAVE___CHKSTK = false,
+        .HAVE___CHKSTK_MS = false,
+        .HAVE___CMPDI2 = false,
+        .HAVE___DIVDI3 = false,
+        .HAVE___FIXDFDI = false,
+        .HAVE___FIXSFDI = false,
+        .HAVE___FLOATDIDF = false,
+        .HAVE___LSHRDI3 = false,
+        .HAVE___MAIN = false,
+        .HAVE___MODDI3 = false,
+        .HAVE___UDIVDI3 = false,
+        .HAVE___UMODDI3 = false,
+        .HAVE____CHKSTK = false,
+        .HAVE____CHKSTK_MS = false,
+        .HOST_LINK_VERSION = "0.0.1", // TODO
+        .LLVM_TARGET_TRIPLE_ENV = false,
+        .LLVM_VERSION_PRINTER_SHOW_HOST_TARGET_INFO = false,
+        .LLVM_VERSION_PRINTER_SHOW_BUILD_CONFIG = false,
+        .LLVM_ENABLE_LIBXML2 = false,
+        .LTDL_SHLIB_EXT = ".so", // TODO: get library extension per OS
+        .LLVM_PLUGIN_EXT = ".so",
+        .PACKAGE_BUGREPORT = "DUMMY ADDRESS",
+        .PACKAGE_NAME = "llvm-zig",
+        .PACKAGE_STRING = "dummy",
+        .PACKAGE_VERSION = @import("build.zig").version_string,
+        .PACKAGE_VENDOR = "the-argus on github",
+        .stricmp = "stricmp",
+        .strdup = "strdup",
+        .LLVM_GISEL_COV_ENABLED = false,
+        .LLVM_GISEL_COV_PREFIX = false,
+        .LLVM_SUPPORT_XCODE_SIGNPOSTS = false,
+        .HAVE_PROC_PID_RUSAGE = false,
+        .HAVE_BUILTIN_THREAD_POINTER = false,
+    });
 
-    ctx.targets.llvm_component_demangle_lib = ctx.b.addLibrary(.{
+    ctx.targets.llvm_host_component_demangle_lib = ctx.b.addLibrary(.{
         .name = "demangle",
-        .root_module = ctx.makeModule(),
+        .root_module = ctx.makeHostModule(),
         .linkage = .static,
     });
-    ctx.targets.llvm_component_demangle_lib.?.addCSourceFiles(.{
+    ctx.targets.llvm_host_component_demangle_lib.?.addCSourceFiles(.{
         .root = ctx.paths.llvm.lib.demangle.path,
         .files = sources.demangle_cpp_files,
         .language = .cpp,
         .flags = &.{},
     });
-    ctx.targets.llvm_component_demangle_lib.?.linkLibCpp();
-    ctx.targets.llvm_component_demangle_lib.?.addIncludePath(ctx.paths.llvm.include.path);
+    ctx.targets.llvm_host_component_demangle_lib.?.linkLibCpp();
+    ctx.targets.llvm_host_component_demangle_lib.?.addIncludePath(ctx.paths.llvm.include.path);
+
+    @import("llvm_zig_support.zig").build(ctx);
 
     // create tablegen executable artifact so fn clangTablegen can use it
     ctx.targets.llvm_tblgen_exe = ctx.b.addExecutable(.{
@@ -179,6 +280,8 @@ pub fn build(ctx: *Context) void {
     ctx.targets.llvm_tblgen_exe.?.addIncludePath(ctx.paths.clang.include.path);
     ctx.targets.llvm_tblgen_exe.?.addConfigHeader(ctx.targets.llvm_public_config_header.?);
     ctx.targets.llvm_tblgen_exe.?.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
+    ctx.targets.llvm_tblgen_exe.?.linkLibrary(ctx.targets.llvm_host_component_support_lib.?);
+    ctx.targets.llvm_tblgen_exe.?.linkLibrary(ctx.targets.llvm_host_component_demangle_lib.?);
 
     // generate RegularKeywordAttrInfo.inc
     const regular_keyword_attr_info_result_file = clangTablegen(ctx, .{
@@ -198,13 +301,6 @@ pub fn build(ctx: *Context) void {
     };
 
     ctx.targets.llvm_regular_keyword_attr_info_inc = regular_keyword_attr_info_result_file;
-}
-
-pub fn osIsUnixLike(os: std.Target.Os.Tag) bool {
-    return switch (os) {
-        .linux, .macos, .fuchsia, .haiku => true,
-        else => false,
-    };
 }
 
 fn getLLVMNativeArch(arch: std.Target.Cpu.Arch) []const u8 {

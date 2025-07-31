@@ -111,6 +111,13 @@ pub const Paths = struct {
                     llvm_public_config_header: ConfigHeader,
                     llvm_abi_breaking_config_header: ConfigHeader,
                 },
+
+                support: struct {
+                    path: LazyPath,
+                },
+                adt: struct {
+                    path: LazyPath,
+                },
             },
         },
 
@@ -121,6 +128,13 @@ pub const Paths = struct {
             },
             support: struct {
                 path: LazyPath,
+
+                unix: struct {
+                    path: LazyPath,
+                },
+                windows: struct {
+                    path: LazyPath,
+                },
             },
         },
     },
@@ -164,20 +178,28 @@ pub const Paths = struct {
             .llvm = .{
                 .include = .{
                     .path = root.path(b, "llvm/include"),
-                    .llvm = .{ .config = .{
-                        .llvm_public_config_header = ConfigHeader{
-                            .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/llvm-config.h.cmake"),
-                            .output_include_path = "llvm/Config/llvm-config.h",
+                    .llvm = .{
+                        .config = .{
+                            .llvm_public_config_header = ConfigHeader{
+                                .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/llvm-config.h.cmake"),
+                                .output_include_path = "llvm/Config/llvm-config.h",
+                            },
+                            .llvm_private_config_header = ConfigHeader{
+                                .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/config.h.cmake"),
+                                .output_include_path = "llvm/Config/config.h",
+                            },
+                            .llvm_abi_breaking_config_header = ConfigHeader{
+                                .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/abi-breaking.h.cmake"),
+                                .output_include_path = "llvm/Config/abi-breaking.h",
+                            },
                         },
-                        .llvm_private_config_header = ConfigHeader{
-                            .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/config.h.cmake"),
-                            .output_include_path = "llvm/Config/config.h",
+                        .support = .{
+                            .path = root.path(b, "llvm/include/llvm/Support"),
                         },
-                        .llvm_abi_breaking_config_header = ConfigHeader{
-                            .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/abi-breaking.h.cmake"),
-                            .output_include_path = "llvm/Config/abi-breaking.h",
+                        .adt = .{
+                            .path = root.path(b, "llvm/include/llvm/ADT"),
                         },
-                    } },
+                    },
                 },
                 .lib = .{
                     .path = root.path(b, "llvm/lib"),
@@ -186,6 +208,12 @@ pub const Paths = struct {
                     },
                     .support = .{
                         .path = root.path(b, "llvm/lib/Support"),
+                        .unix = .{
+                            .path = root.path(b, "llvm/lib/Support/Unix"),
+                        },
+                        .windows = .{
+                            .path = root.path(b, "llvm/lib/Support/Windows"),
+                        },
                     },
                 },
             },
@@ -210,8 +238,9 @@ pub const Targets = struct {
     llvm_abi_breaking_config_header: ?*std.Build.Step.ConfigHeader = null,
     llvm_regular_keyword_attr_info_inc: ?RunArtifactResultFile = null,
 
-    llvm_component_demangle_lib: ?*Compile = null,
-    llvm_component_support_lib: ?*Compile = null,
+    // built for the host system
+    llvm_host_component_demangle_lib: ?*Compile = null,
+    llvm_host_component_support_lib: ?*Compile = null,
 };
 
 pub const Context = struct {
@@ -220,6 +249,9 @@ pub const Context = struct {
     targets: Targets,
     paths: *const Paths,
     opts: *const Options,
+
+    global_system_libraries: std.ArrayList([]const u8),
+    global_flags: std.ArrayList([]const u8),
 
     pub fn new(
         b: *std.Build,
@@ -236,8 +268,26 @@ pub const Context = struct {
             .targets = .{},
             .paths = Paths.new(b, llvm_source_root),
             .opts = allocated_opts,
+            .global_system_libraries = std.ArrayList([]const u8).initCapacity(b.allocator, 50) catch @panic("OOM"),
+            .global_flags = std.ArrayList([]const u8).initCapacity(b.allocator, 50) catch @panic("OOM"),
         };
+
+        if (module_opts.target.?.result.abi.isGnu()) {
+            out.global_flags.append("-D_GNU_SOURCE") catch @panic("OOM");
+
+            if (module_opts.target.?.result.ptrBitWidth() == 32) {
+                // enable 64bit off_t on 32bit systems using glibc
+                out.global_flags.append("-D_FILE_OFFSET_BITS=64") catch @panic("OOM");
+            }
+        }
+
         return out;
+    }
+
+    pub fn makeFlags(self: @This()) std.ArrayList([]const u8) {
+        var flags = std.ArrayList([]const u8).initCapacity(self.b.allocator, 50) catch @panic("OOM");
+        flags.appendSlice(self.global_flags.items) catch @panic("OOM");
+        return flags;
     }
 
     pub fn makeModule(self: @This()) *std.Build.Module {
@@ -249,6 +299,51 @@ pub const Context = struct {
         var opts_copy = self.module_opts;
         opts_copy.target = self.b.graph.host;
         return self.b.createModule(opts_copy);
+    }
+
+    pub fn osIsUnixLike(os: std.Target.Os.Tag) bool {
+        return switch (os) {
+            .linux, .macos, .fuchsia, .haiku => true,
+            else => false,
+        };
+    }
+
+    const SystemHeader = enum {
+        MACH_MACH_H,
+        MALLOC_MALLOC_H,
+        PTHREAD_H,
+        SYS_MMAN_H,
+        SYSEXITS_H,
+        UNISTD_H,
+    };
+
+    // TODO: are these headers ever provided by zig for platforms that typically
+    // don't support them?
+    pub fn osHasHeader(os: std.Target.Os.Tag, header: SystemHeader) bool {
+        const default_for_unsupported = true;
+        return switch (header) {
+            .MACH_MACH_H, .MALLOC_MALLOC_H => switch (os) {
+                .linux, .aix, .dragonfly, .freebsd, .netbsd, .haiku, .openbsd => false,
+                .macos, .ios => true,
+                .zos => false,
+                .windows => false,
+                else => default_for_unsupported,
+            },
+            .PTHREAD_H, .SYS_MMAN_H, .UNISTD_H => switch (os) {
+                .linux, .aix, .dragonfly, .freebsd, .netbsd, .haiku, .openbsd => true,
+                .macos, .ios => true,
+                .windows => false,
+                .zos => true,
+                else => default_for_unsupported,
+            },
+            .SYSEXITS_H => switch (os) {
+                .linux, .aix, .dragonfly, .freebsd, .netbsd, .haiku, .openbsd => true,
+                .macos, .ios => true,
+                .windows => false,
+                .zos => false,
+                else => default_for_unsupported,
+            },
+        };
     }
 };
 

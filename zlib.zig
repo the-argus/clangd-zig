@@ -39,6 +39,7 @@ pub fn build(zlib_dep: *std.Build.Dependency, module: *std.Build.Module) *std.Bu
             .language = .c,
         });
     }
+    // TODO: install header files for dependants to use
 
     return zlib;
 }
