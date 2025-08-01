@@ -120,6 +120,26 @@ pub const tablegen_cpp_files = &.{
     "TableGen.cpp",
 };
 
+pub const tablegen_lib_cpp_files = &.{
+    "DetailedRecordsBackend.cpp",
+    "Error.cpp",
+    "JSONBackend.cpp",
+    "Main.cpp",
+    "Parser.cpp",
+    "Record.cpp",
+    "SetTheory.cpp",
+    "StringMatcher.cpp",
+    "TableGenBackend.cpp",
+    "TableGenBackendSkeleton.cpp",
+    "TGLexer.cpp",
+    "TGParser.cpp",
+    "TGTimer.cpp",
+};
+
+pub const clang_support_lib_cpp_files = &.{
+    "RISCVVIntrinsicUtils.cpp",
+};
+
 pub const demangle_cpp_files = &.{
     "Demangle.cpp",
     "ItaniumDemangle.cpp",

@@ -2,7 +2,6 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const Context = @import("build.zig").Context;
-const RunArtifactResultFile = @import("build.zig").RunArtifactResultFile;
 const ABIBreakingChecks = @import("build.zig").ABIBreakingChecks;
 const version = @import("build.zig").version;
 const version_string = @import("build.zig").version_string;
@@ -38,31 +37,6 @@ const llvm_native_arch = getLLVMNativeArch(builtin.cpu.arch);
 // trying to define an intrinsic
 fn llvmTargetToolString(ctx: *Context, str: []const u8) []const u8 {
     return ctx.b.fmt("LLVMInitialize{s}{s}", .{ llvm_native_arch, str });
-}
-
-const TableGenOptions = struct {
-    source_file: std.Build.LazyPath,
-    output_filename: []const u8,
-    args: []const []const u8 = &.{},
-    // these directories will have -I prefixing them and then be passed as args
-    include_dir_args: []const std.Build.LazyPath = &.{},
-};
-
-fn clangTablegen(
-    ctx: *Context,
-    options: TableGenOptions,
-) RunArtifactResultFile {
-    const tblgen_invocation = ctx.b.addRunArtifact(ctx.targets.llvm_tblgen_exe.?);
-    tblgen_invocation.addFileArg(options.source_file);
-    const generated_file = tblgen_invocation.addPrefixedOutputFileArg("-o", options.output_filename);
-    tblgen_invocation.addArgs(options.args);
-    for (options.include_dir_args) |include_dir| {
-        tblgen_invocation.addPrefixedDirectoryArg("-I", include_dir);
-    }
-    return RunArtifactResultFile{
-        .outputted_file = generated_file,
-        .step = &tblgen_invocation.step,
-    };
 }
 
 /// Fills out all the fields in Context.targets that start with llvm_*, pulling
@@ -264,43 +238,23 @@ pub fn build(ctx: *Context) void {
 
     @import("llvm_zig_support.zig").build(ctx);
 
-    // create tablegen executable artifact so fn clangTablegen can use it
-    ctx.targets.llvm_tblgen_exe = ctx.b.addExecutable(.{
-        .name = "tblgen",
-        .root_module = ctx.makeHostModule(), // this exe runs on the host
+    ctx.targets.clang_host_component_support_lib = ctx.b.addLibrary(.{
+        .name = "clangsupport",
+        .root_module = ctx.makeHostModule(),
     });
-    ctx.targets.llvm_tblgen_exe.?.addCSourceFiles(.{
-        .root = ctx.paths.clang.utils.tablegen.path,
-        .files = sources.tablegen_cpp_files,
+    ctx.targets.clang_host_component_support_lib.?.addCSourceFiles(.{
+        .root = ctx.paths.clang.lib.support.path,
+        .files = sources.clang_support_lib_cpp_files,
         .flags = &.{},
         .language = .cpp,
     });
-    ctx.targets.llvm_tblgen_exe.?.linkLibCpp();
-    ctx.targets.llvm_tblgen_exe.?.addIncludePath(ctx.paths.llvm.include.path);
-    ctx.targets.llvm_tblgen_exe.?.addIncludePath(ctx.paths.clang.include.path);
-    ctx.targets.llvm_tblgen_exe.?.addConfigHeader(ctx.targets.llvm_public_config_header.?);
-    ctx.targets.llvm_tblgen_exe.?.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
-    ctx.targets.llvm_tblgen_exe.?.linkLibrary(ctx.targets.llvm_host_component_support_lib.?);
-    ctx.targets.llvm_tblgen_exe.?.linkLibrary(ctx.targets.llvm_host_component_demangle_lib.?);
+    ctx.targets.clang_host_component_support_lib.?.linkLibCpp();
+    ctx.targets.clang_host_component_support_lib.?.addIncludePath(ctx.paths.clang.include.path);
+    ctx.targets.clang_host_component_support_lib.?.addIncludePath(ctx.paths.llvm.include.path);
+    ctx.targets.clang_host_component_support_lib.?.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
+    ctx.targets.clang_host_component_support_lib.?.addConfigHeader(ctx.targets.llvm_public_config_header.?);
 
-    // generate RegularKeywordAttrInfo.inc
-    const regular_keyword_attr_info_result_file = clangTablegen(ctx, .{
-        .output_filename = "RegularKeywordAttrInfo.inc",
-        .args = &.{"-gen-clang-regular-keyword-attr-info"},
-        .include_dir_args = &.{ctx.paths.clang.include.path},
-        .source_file = ctx.paths.clang.include.clang.basic.attr_td,
-    });
-    // put RegularKeywordAttrInfo.inc into clang/Basic
-    const regular_keyword_attr_info_with_subdir = ctx.b.addWriteFiles();
-    ctx.targets.llvm_regular_keyword_attr_info_inc = .{
-        .step = &regular_keyword_attr_info_with_subdir.step,
-        .outputted_file = regular_keyword_attr_info_with_subdir.addCopyFile(
-            regular_keyword_attr_info_result_file.outputted_file,
-            "clang/Basic/RegularKeywordAttrInfo.inc",
-        ),
-    };
-
-    ctx.targets.llvm_regular_keyword_attr_info_inc = regular_keyword_attr_info_result_file;
+    @import("clang_include_basic.zig").build(ctx);
 }
 
 fn getLLVMNativeArch(arch: std.Target.Cpu.Arch) []const u8 {

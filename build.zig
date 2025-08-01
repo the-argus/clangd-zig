@@ -95,6 +95,11 @@ pub const Paths = struct {
                 },
             },
         },
+        lib: struct {
+            support: struct {
+                path: LazyPath,
+            },
+        },
         utils: struct {
             tablegen: struct {
                 path: LazyPath,
@@ -115,6 +120,9 @@ pub const Paths = struct {
                 support: struct {
                     path: LazyPath,
                 },
+                tablegen: struct {
+                    path: LazyPath,
+                },
                 adt: struct {
                     path: LazyPath,
                 },
@@ -124,6 +132,9 @@ pub const Paths = struct {
         lib: struct {
             path: LazyPath,
             demangle: struct {
+                path: LazyPath,
+            },
+            tablegen: struct {
                 path: LazyPath,
             },
             support: struct {
@@ -169,6 +180,11 @@ pub const Paths = struct {
                         },
                     },
                 },
+                .lib = .{
+                    .support = .{
+                        .path = root.path(b, "clang/lib/Support"),
+                    },
+                },
                 .utils = .{
                     .tablegen = .{
                         .path = root.path(b, "clang/utils/TableGen"),
@@ -196,6 +212,9 @@ pub const Paths = struct {
                         .support = .{
                             .path = root.path(b, "llvm/include/llvm/Support"),
                         },
+                        .tablegen = .{
+                            .path = root.path(b, "llvm/include/llvm/TableGen"),
+                        },
                         .adt = .{
                             .path = root.path(b, "llvm/include/llvm/ADT"),
                         },
@@ -205,6 +224,9 @@ pub const Paths = struct {
                     .path = root.path(b, "llvm/lib"),
                     .demangle = .{
                         .path = root.path(b, "llvm/lib/Demangle"),
+                    },
+                    .tablegen = .{
+                        .path = root.path(b, "llvm/lib/TableGen"),
                     },
                     .support = .{
                         .path = root.path(b, "llvm/lib/Support"),
@@ -228,7 +250,7 @@ pub const Targets = struct {
     clangd_lib: ?*Compile = null,
     clangd_main_lib: ?*Compile = null,
     clangd_exe: ?*Compile = null,
-    llvm_tblgen_exe: ?*Compile = null,
+    llvm_tblgen_exe: ?*Compile = null, // built for host system
 
     // llvm/include/llvm/Config/llvm-config.h.cmake
     llvm_public_config_header: ?*std.Build.Step.ConfigHeader = null,
@@ -241,6 +263,9 @@ pub const Targets = struct {
     // built for the host system
     llvm_host_component_demangle_lib: ?*Compile = null,
     llvm_host_component_support_lib: ?*Compile = null,
+    llvm_host_component_tablegen_lib: ?*Compile = null,
+
+    clang_host_component_support_lib: ?*Compile = null,
 };
 
 pub const Context = struct {
