@@ -319,8 +319,9 @@ pub const Context = struct {
 
     // TODO: are these headers ever provided by zig for platforms that typically
     // don't support them?
-    pub fn osHasHeader(os: std.Target.Os.Tag, header: SystemHeader) bool {
+    pub fn targetHasHeader(target: std.Target, header: SystemHeader) bool {
         const default_for_unsupported = true;
+        const os = target.os.tag;
         return switch (header) {
             .MACH_MACH_H, .MALLOC_MALLOC_H => switch (os) {
                 .linux, .aix, .dragonfly, .freebsd, .netbsd, .haiku, .openbsd => false,
@@ -341,6 +342,32 @@ pub const Context = struct {
                 .macos, .ios => true,
                 .windows => false,
                 .zos => false,
+                else => default_for_unsupported,
+            },
+        };
+    }
+
+    const Symbol = enum {
+        GETPAGESIZE,
+        SYSCONF,
+    };
+
+    pub fn targetHasSymbol(target: std.Target, sym: Symbol) bool {
+        const default_for_unsupported = false;
+        const os = target.os.tag;
+        return switch (sym) {
+            .GETPAGESIZE => switch (os) {
+                .linux, .aix, .dragonfly, .freebsd, .netbsd, .haiku, .openbsd => false,
+                .macos, .ios => true,
+                .zos => false,
+                .windows => false,
+                else => default_for_unsupported,
+            },
+            .SYSCONF => switch (os) {
+                .linux, .aix, .dragonfly, .freebsd, .netbsd, .haiku, .openbsd => true,
+                .macos, .ios => false,
+                .zos => false,
+                .windows => false,
                 else => default_for_unsupported,
             },
         };

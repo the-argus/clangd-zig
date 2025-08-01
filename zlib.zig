@@ -18,6 +18,20 @@ const srcs = &[_][]const u8{
     "zutil.c",
 };
 
+const headers = &[_][]const u8{
+    "zutil.h",
+    "zlib.h",
+    "zconf.h",
+    "trees.h",
+    "inftrees.h",
+    "inflate.h",
+    "inffixed.h",
+    "inffast.h",
+    "gzguts.h",
+    "deflate.h",
+    "crc32.h",
+};
+
 const flags = &.{
     "-std=c89",
 };
@@ -39,7 +53,10 @@ pub fn build(zlib_dep: *std.Build.Dependency, module: *std.Build.Module) *std.Bu
             .language = .c,
         });
     }
-    // TODO: install header files for dependants to use
+
+    for (headers) |header| {
+        zlib.installHeader(zlib_dep.path(header), header);
+    }
 
     return zlib;
 }
