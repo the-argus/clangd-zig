@@ -496,6 +496,10 @@ pub fn build(b: *std.Build) !void {
 
     const llvm_project = b.dependency("llvm_project", .{});
 
+    // dummy dependency which is used when determining what lazy dependencies to
+    // fetch. could also be llvm_project
+    var default_dependency = std.Build.Dependency{ .builder = b };
+
     var ctx = Context.new(b, .{
         .target = target,
         .optimize = optimize,
@@ -516,8 +520,8 @@ pub fn build(b: *std.Build) !void {
         .clangd_decision_forest = clangd_decision_forest,
     });
 
-    if (llvm_enable_zlib) {
-        const zlib_dep = b.lazyDependency("zlib", .{}).?;
+    if (ctx.opts.llvm_enable_zlib) {
+        const zlib_dep = b.lazyDependency("zlib", .{}) orelse &default_dependency;
         ctx.targets.zlib = zlib_builder.build(zlib_dep, ctx.makeModule());
     }
 
