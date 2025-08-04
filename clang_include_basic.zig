@@ -1,9 +1,9 @@
 const std = @import("std");
 
 const Context = @import("build.zig").Context;
+const ClangTablegenTarget = @import("build.zig").ClangTablegenTarget;
+const ClangTablegenDescription = @import("build.zig").ClangTablegenDescription;
 const sources = @import("clangd_sources.zig");
-
-const RunArtifactResultFile = @import("build.zig").RunArtifactResultFile;
 
 pub const TableGenOptions = struct {
     source_file: std.Build.LazyPath,
@@ -16,7 +16,7 @@ pub const TableGenOptions = struct {
 pub fn clangTablegen(
     ctx: *Context,
     options: TableGenOptions,
-) RunArtifactResultFile {
+) std.Build.LazyPath {
     const tblgen_invocation = ctx.b.addRunArtifact(ctx.targets.llvm_tblgen_exe.?);
     tblgen_invocation.addFileArg(options.source_file);
     tblgen_invocation.addArg("-o");
@@ -25,10 +25,23 @@ pub fn clangTablegen(
     for (options.include_dir_args) |include_dir| {
         tblgen_invocation.addPrefixedDirectoryArg("-I", include_dir);
     }
-    return RunArtifactResultFile{
-        .outputted_file = generated_file,
-        .step = &tblgen_invocation.step,
-    };
+    return generated_file;
+}
+
+pub fn clangBasicAddInc(ctx: *Context, wfs: *std.Build.Step.WriteFile, desc: ClangTablegenDescription) void {
+    for (desc.targets) |target| {
+        const regular_keyword_attr_info_result_file = clangTablegen(ctx, .{
+            .output_filename = target.output_basename,
+            .args = target.flags,
+            .include_dir_args = &.{ ctx.paths.clang.include.path, ctx.paths.clang.include.clang.basic.path },
+            .source_file = desc.td_file,
+        });
+        ctx.targets.clang_tablegenerated_incs = wfs.getDirectory();
+        _ = wfs.addCopyFile(
+            regular_keyword_attr_info_result_file,
+            "clang/Basic",
+        );
+    }
 }
 
 pub fn build(ctx: *Context) void {
@@ -71,22 +84,12 @@ pub fn build(ctx: *Context) void {
     ctx.targets.llvm_tblgen_exe.?.linkLibrary(ctx.targets.llvm_host_component_tablegen_lib.?);
     ctx.targets.llvm_tblgen_exe.?.linkLibrary(ctx.targets.clang_host_component_support_lib.?);
 
-    // generate RegularKeywordAttrInfo.inc
-    const regular_keyword_attr_info_result_file = @import("clang_include_basic.zig").clangTablegen(ctx, .{
-        .output_filename = "RegularKeywordAttrInfo.inc",
-        .args = &.{"-gen-clang-regular-keyword-attr-info"},
-        .include_dir_args = &.{ctx.paths.clang.include.path},
-        .source_file = ctx.paths.clang.include.clang.basic.attr_td,
-    });
-    // put RegularKeywordAttrInfo.inc into clang/Basic
-    const regular_keyword_attr_info_with_subdir = ctx.b.addWriteFiles();
-    ctx.targets.llvm_regular_keyword_attr_info_inc = .{
-        .step = &regular_keyword_attr_info_with_subdir.step,
-        .outputted_file = regular_keyword_attr_info_with_subdir.addCopyFile(
-            regular_keyword_attr_info_result_file.outputted_file,
-            "clang/Basic/RegularKeywordAttrInfo.inc",
-        ),
-    };
+    const writefile_step = ctx.b.addWriteFiles();
 
-    ctx.targets.llvm_regular_keyword_attr_info_inc = regular_keyword_attr_info_result_file;
+    // generate all the needed .inc files and copy them into the subdir
+    clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.attr_td);
+    clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.declnodes_td);
+    clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.diagnostic_td);
+
+    ctx.targets.clang_tablegenerated_incs = writefile_step.getDirectory();
 }

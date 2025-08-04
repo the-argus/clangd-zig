@@ -42,11 +42,6 @@ pub const ConfigHeader = struct {
     }
 };
 
-pub const RunArtifactResultFile = struct {
-    outputted_file: std.Build.LazyPath,
-    step: *std.Build.Step,
-};
-
 pub const ABIBreakingChecks = enum {
     WITH_ASSERTS,
     FORCE_ON,
@@ -64,6 +59,16 @@ pub const ABIBreakingChecks = enum {
     pub fn default() @This() {
         return .WITH_ASSERTS;
     }
+};
+
+pub const ClangTablegenTarget = struct {
+    output_basename: []const u8,
+    flags: []const []const u8,
+};
+
+pub const ClangTablegenDescription = struct {
+    td_file: LazyPath,
+    targets: []const ClangTablegenTarget,
 };
 
 pub const Paths = struct {
@@ -91,7 +96,9 @@ pub const Paths = struct {
             clang: struct {
                 basic: struct {
                     path: LazyPath,
-                    attr_td: LazyPath,
+                    attr_td: ClangTablegenDescription,
+                    diagnostic_td: ClangTablegenDescription,
+                    declnodes_td: ClangTablegenDescription,
                 },
             },
         },
@@ -153,6 +160,58 @@ pub const Paths = struct {
     pub fn new(b: *std.Build, root: LazyPath) *const Paths {
         const out = b.allocator.create(Paths) catch @panic("OOM");
         const cte = "clang-tools-extra/";
+        const initial_diag_target_list = &.{
+            ClangTablegenTarget{
+                .output_basename = "DiagnosticGroups.inc",
+                .flags = &.{"-gen-clang-diag-groups"},
+            },
+            ClangTablegenTarget{
+                .output_basename = "DiagnosticIndexName.inc",
+                .flags = &.{"-gen-clang-diags-index-name"},
+            },
+        };
+
+        var diag_target_list = std.ArrayList(ClangTablegenTarget).initCapacity(b.allocator, 50) catch @panic("OOM");
+        diag_target_list.appendSlice(initial_diag_target_list) catch @panic("OOM");
+
+        const diag_targets = &[_][]const u8{
+            "Analysis",
+            "AST",
+            "Comment",
+            "Common",
+            "CrossTU",
+            "Driver",
+            "Frontend",
+            "InstallAPI",
+            "Lex",
+            "Parse",
+            "Refactoring",
+            "Sema",
+            "Serialization",
+        };
+
+        for (diag_targets) |targetname| {
+            const component_flag = b.fmt("-clang-component={s}", .{targetname});
+            const flags = b.allocator.create([4][]const u8) catch @panic("OOM");
+            flags.* = .{ "-gen-clang-diags-defs", component_flag, "-gen-clang-diags-enums", component_flag };
+            diag_target_list.appendSlice(&.{
+                .{
+                    .output_basename = b.fmt("Diagnostic{s}Kinds.inc", .{targetname}),
+                    .flags = flags[0..2],
+                },
+                .{
+                    .output_basename = b.fmt("Diagnostic{s}Enums.inc", .{targetname}),
+                    .flags = flags[2..],
+                },
+            }) catch @panic("OOM");
+        }
+
+        const attr_targets = &[_]ClangTablegenTarget{
+            .{ .output_basename = "Attrs.inc", .flags = &[_][]const u8{"-gen-clang-attr-classes"} },
+        };
+        const declnode_targets = &[_]ClangTablegenTarget{
+            .{ .output_basename = "DeclNodes.inc", .flags = &[_][]const u8{"-gen-clang-decl-nodes"} },
+        };
 
         out.* = Paths{
             .root = root,
@@ -176,7 +235,18 @@ pub const Paths = struct {
                     .clang = .{
                         .basic = .{
                             .path = root.path(b, "clang/include/clang/Basic"),
-                            .attr_td = root.path(b, "clang/include/clang/Basic/Attr.td"),
+                            .attr_td = ClangTablegenDescription{
+                                .td_file = root.path(b, "clang/include/clang/Basic/Attr.td"),
+                                .targets = attr_targets,
+                            },
+                            .diagnostic_td = ClangTablegenDescription{
+                                .td_file = root.path(b, "clang/include/clang/Basic/Diagnostic.td"),
+                                .targets = diag_target_list.toOwnedSlice() catch @panic("OOM"),
+                            },
+                            .declnodes_td = ClangTablegenDescription{
+                                .td_file = root.path(b, "clang/include/clang/Basic/DeclNodes.td"),
+                                .targets = declnode_targets,
+                            },
                         },
                     },
                 },
@@ -258,7 +328,6 @@ pub const Targets = struct {
     llvm_private_config_header: ?*std.Build.Step.ConfigHeader = null,
     // llvm/include/llvm/Config/abi-breaking.h.cmake
     llvm_abi_breaking_config_header: ?*std.Build.Step.ConfigHeader = null,
-    llvm_regular_keyword_attr_info_inc: ?RunArtifactResultFile = null,
 
     // built for the host system
     llvm_host_component_demangle_lib: ?*Compile = null,
@@ -266,6 +335,7 @@ pub const Targets = struct {
     llvm_host_component_tablegen_lib: ?*Compile = null,
 
     clang_host_component_support_lib: ?*Compile = null,
+    clang_tablegenerated_incs: ?LazyPath = null,
 };
 
 pub const Context = struct {
@@ -537,7 +607,7 @@ pub fn build(b: *std.Build) !void {
     ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.clang_tools_extra.include_cleaner.include.path);
     ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.clang_tools_extra.clangd.path);
     ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.clang.include.path);
-    ctx.targets.clangd_lib.?.addIncludePath(ctx.targets.llvm_regular_keyword_attr_info_inc.?.outputted_file);
+    ctx.targets.clangd_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
     ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.llvm.include.path);
     ctx.targets.clangd_lib.?.addConfigHeader(ctx.targets.llvm_public_config_header.?);
     ctx.targets.clangd_lib.?.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
