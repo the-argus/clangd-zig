@@ -36,10 +36,9 @@ pub fn clangBasicAddInc(ctx: *Context, wfs: *std.Build.Step.WriteFile, desc: Cla
             .include_dir_args = &.{ ctx.paths.clang.include.path, ctx.paths.clang.include.clang.basic.path },
             .source_file = desc.td_file,
         });
-        ctx.targets.clang_tablegenerated_incs = wfs.getDirectory();
         _ = wfs.addCopyFile(
             regular_keyword_attr_info_result_file,
-            "clang/Basic",
+            ctx.b.pathJoin(&.{ "clang", "Basic", target.output_basename }),
         );
     }
 }
@@ -90,6 +89,13 @@ pub fn build(ctx: *Context) void {
     clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.attr_td);
     clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.declnodes_td);
     clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.diagnostic_td);
-
+    clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.builtins_td);
+    clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.builtins_bpf_td);
+    clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.builtins_hexagon_td);
+    clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.builtins_nvptx_td);
+    clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.builtins_riscv_td);
+    clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.builtins_spirv_td);
+    clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.builtins_x86_td);
+    clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.builtins_x86_64_td);
     ctx.targets.clang_tablegenerated_incs = writefile_step.getDirectory();
 }

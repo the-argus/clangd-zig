@@ -99,6 +99,14 @@ pub const Paths = struct {
                     attr_td: ClangTablegenDescription,
                     diagnostic_td: ClangTablegenDescription,
                     declnodes_td: ClangTablegenDescription,
+                    builtins_td: ClangTablegenDescription,
+                    builtins_bpf_td: ClangTablegenDescription,
+                    builtins_hexagon_td: ClangTablegenDescription,
+                    builtins_nvptx_td: ClangTablegenDescription,
+                    builtins_riscv_td: ClangTablegenDescription,
+                    builtins_spirv_td: ClangTablegenDescription,
+                    builtins_x86_td: ClangTablegenDescription,
+                    builtins_x86_64_td: ClangTablegenDescription,
                 },
             },
         },
@@ -207,11 +215,26 @@ pub const Paths = struct {
         }
 
         const attr_targets = &[_]ClangTablegenTarget{
-            .{ .output_basename = "Attrs.inc", .flags = &[_][]const u8{"-gen-clang-attr-classes"} },
+            .{ .output_basename = "Attrs.inc", .flags = &.{"-gen-clang-attr-classes"} },
+            .{ .output_basename = "AttrList.inc", .flags = &.{"-gen-clang-attr-list"} },
+            .{ .output_basename = "AttrParsedAttrList.inc", .flags = &.{"-gen-clang-attr-parsed-attr-list"} },
+            .{ .output_basename = "AttrSubMatchRulesList.inc", .flags = &.{"-gen-clang-attr-subject-match-rule-list"} },
+            .{ .output_basename = "RegularKeywordAttrInfo.inc", .flags = &.{"-gen-clang-regular-keyword-attr-info"} },
+            .{ .output_basename = "AttrHasAttributeImpl.inc", .flags = &.{"-gen-clang-attr-has-attribute-impl"} },
+            .{ .output_basename = "CXX11AttributeInfo.inc", .flags = &.{"-gen-cxx11-attribute-info"} },
         };
         const declnode_targets = &[_]ClangTablegenTarget{
             .{ .output_basename = "DeclNodes.inc", .flags = &[_][]const u8{"-gen-clang-decl-nodes"} },
         };
+
+        const builtins_targets = &[_]ClangTablegenTarget{.{ .output_basename = "Builtins.inc", .flags = &.{"-gen-clang-builtins"} }};
+        const builtins_bpf_targets = &[_]ClangTablegenTarget{.{ .output_basename = "BuiltinsBPF.inc", .flags = &.{"-gen-clang-builtins"} }};
+        const builtins_hexagon_targets = &[_]ClangTablegenTarget{.{ .output_basename = "BuiltinsBPF.inc", .flags = &.{"-gen-clang-builtins"} }};
+        const builtins_nvptx_targets = &[_]ClangTablegenTarget{.{ .output_basename = "BuiltinsNVPTX.inc", .flags = &.{"-gen-clang-builtins"} }};
+        const builtins_riscv_targets = &[_]ClangTablegenTarget{.{ .output_basename = "BuiltinsRISCV.inc", .flags = &.{"-gen-clang-builtins"} }};
+        const builtins_spirv_targets = &[_]ClangTablegenTarget{.{ .output_basename = "BuiltinsSPIRV.inc", .flags = &.{"-gen-clang-builtins"} }};
+        const builtins_x86_targets = &[_]ClangTablegenTarget{.{ .output_basename = "BuiltinsX86.inc", .flags = &.{"-gen-clang-builtins"} }};
+        const builtins_x86_64_targets = &[_]ClangTablegenTarget{.{ .output_basename = "BuiltinsX86_64.inc", .flags = &.{"-gen-clang-builtins"} }};
 
         out.* = Paths{
             .root = root,
@@ -246,6 +269,38 @@ pub const Paths = struct {
                             .declnodes_td = ClangTablegenDescription{
                                 .td_file = root.path(b, "clang/include/clang/Basic/DeclNodes.td"),
                                 .targets = declnode_targets,
+                            },
+                            .builtins_td = ClangTablegenDescription{
+                                .td_file = root.path(b, "clang/include/clang/Basic/Builtins.td"),
+                                .targets = builtins_targets,
+                            },
+                            .builtins_bpf_td = ClangTablegenDescription{
+                                .td_file = root.path(b, "clang/include/clang/Basic/BuiltinsBPF.td"),
+                                .targets = builtins_bpf_targets,
+                            },
+                            .builtins_hexagon_td = ClangTablegenDescription{
+                                .td_file = root.path(b, "clang/include/clang/Basic/BuiltinsHexagon.td"),
+                                .targets = builtins_hexagon_targets,
+                            },
+                            .builtins_nvptx_td = ClangTablegenDescription{
+                                .td_file = root.path(b, "clang/include/clang/Basic/BuiltinsNVPTX.td"),
+                                .targets = builtins_nvptx_targets,
+                            },
+                            .builtins_riscv_td = ClangTablegenDescription{
+                                .td_file = root.path(b, "clang/include/clang/Basic/BuiltinsRISCV.td"),
+                                .targets = builtins_riscv_targets,
+                            },
+                            .builtins_spirv_td = ClangTablegenDescription{
+                                .td_file = root.path(b, "clang/include/clang/Basic/BuiltinsSPIRV.td"),
+                                .targets = builtins_spirv_targets,
+                            },
+                            .builtins_x86_td = ClangTablegenDescription{
+                                .td_file = root.path(b, "clang/include/clang/Basic/BuiltinsX86.td"),
+                                .targets = builtins_x86_targets,
+                            },
+                            .builtins_x86_64_td = ClangTablegenDescription{
+                                .td_file = root.path(b, "clang/include/clang/Basic/BuiltinsX86_64.td"),
+                                .targets = builtins_x86_64_targets,
                             },
                         },
                     },
