@@ -5,6 +5,8 @@ const zlib_builder = @import("zlib.zig");
 const sources = @import("clangd_sources.zig");
 const Compile = std.Build.Step.Compile;
 const LazyPath = std.Build.LazyPath;
+const clang_tablegen_descriptions = @import("clang_tablegen_descriptions.zig");
+const ClangTablegenDescription = clang_tablegen_descriptions.ClangTablegenDescription;
 pub const version = std.SemanticVersion{ .major = 20, .minor = 1, .patch = 8 };
 pub const version_string = "20.1.8";
 
@@ -61,16 +63,6 @@ pub const ABIBreakingChecks = enum {
     }
 };
 
-pub const ClangTablegenTarget = struct {
-    output_basename: []const u8,
-    flags: []const []const u8,
-};
-
-pub const ClangTablegenDescription = struct {
-    td_file: LazyPath,
-    targets: []const ClangTablegenTarget,
-};
-
 pub const Paths = struct {
     root: LazyPath,
     // subdirs in the root directory
@@ -96,17 +88,6 @@ pub const Paths = struct {
             clang: struct {
                 basic: struct {
                     path: LazyPath,
-                    attr_td: ClangTablegenDescription,
-                    diagnostic_td: ClangTablegenDescription,
-                    declnodes_td: ClangTablegenDescription,
-                    builtins_td: ClangTablegenDescription,
-                    builtins_bpf_td: ClangTablegenDescription,
-                    builtins_hexagon_td: ClangTablegenDescription,
-                    builtins_nvptx_td: ClangTablegenDescription,
-                    builtins_riscv_td: ClangTablegenDescription,
-                    builtins_spirv_td: ClangTablegenDescription,
-                    builtins_x86_td: ClangTablegenDescription,
-                    builtins_x86_64_td: ClangTablegenDescription,
                 },
             },
         },
@@ -168,73 +149,6 @@ pub const Paths = struct {
     pub fn new(b: *std.Build, root: LazyPath) *const Paths {
         const out = b.allocator.create(Paths) catch @panic("OOM");
         const cte = "clang-tools-extra/";
-        const initial_diag_target_list = &.{
-            ClangTablegenTarget{
-                .output_basename = "DiagnosticGroups.inc",
-                .flags = &.{"-gen-clang-diag-groups"},
-            },
-            ClangTablegenTarget{
-                .output_basename = "DiagnosticIndexName.inc",
-                .flags = &.{"-gen-clang-diags-index-name"},
-            },
-        };
-
-        var diag_target_list = std.ArrayList(ClangTablegenTarget).initCapacity(b.allocator, 50) catch @panic("OOM");
-        diag_target_list.appendSlice(initial_diag_target_list) catch @panic("OOM");
-
-        const diag_targets = &[_][]const u8{
-            "Analysis",
-            "AST",
-            "Comment",
-            "Common",
-            "CrossTU",
-            "Driver",
-            "Frontend",
-            "InstallAPI",
-            "Lex",
-            "Parse",
-            "Refactoring",
-            "Sema",
-            "Serialization",
-        };
-
-        for (diag_targets) |targetname| {
-            const component_flag = b.fmt("-clang-component={s}", .{targetname});
-            const flags = b.allocator.create([4][]const u8) catch @panic("OOM");
-            flags.* = .{ "-gen-clang-diags-defs", component_flag, "-gen-clang-diags-enums", component_flag };
-            diag_target_list.appendSlice(&.{
-                .{
-                    .output_basename = b.fmt("Diagnostic{s}Kinds.inc", .{targetname}),
-                    .flags = flags[0..2],
-                },
-                .{
-                    .output_basename = b.fmt("Diagnostic{s}Enums.inc", .{targetname}),
-                    .flags = flags[2..],
-                },
-            }) catch @panic("OOM");
-        }
-
-        const attr_targets = &[_]ClangTablegenTarget{
-            .{ .output_basename = "Attrs.inc", .flags = &.{"-gen-clang-attr-classes"} },
-            .{ .output_basename = "AttrList.inc", .flags = &.{"-gen-clang-attr-list"} },
-            .{ .output_basename = "AttrParsedAttrList.inc", .flags = &.{"-gen-clang-attr-parsed-attr-list"} },
-            .{ .output_basename = "AttrSubMatchRulesList.inc", .flags = &.{"-gen-clang-attr-subject-match-rule-list"} },
-            .{ .output_basename = "RegularKeywordAttrInfo.inc", .flags = &.{"-gen-clang-regular-keyword-attr-info"} },
-            .{ .output_basename = "AttrHasAttributeImpl.inc", .flags = &.{"-gen-clang-attr-has-attribute-impl"} },
-            .{ .output_basename = "CXX11AttributeInfo.inc", .flags = &.{"-gen-cxx11-attribute-info"} },
-        };
-        const declnode_targets = &[_]ClangTablegenTarget{
-            .{ .output_basename = "DeclNodes.inc", .flags = &[_][]const u8{"-gen-clang-decl-nodes"} },
-        };
-
-        const builtins_targets = &[_]ClangTablegenTarget{.{ .output_basename = "Builtins.inc", .flags = &.{"-gen-clang-builtins"} }};
-        const builtins_bpf_targets = &[_]ClangTablegenTarget{.{ .output_basename = "BuiltinsBPF.inc", .flags = &.{"-gen-clang-builtins"} }};
-        const builtins_hexagon_targets = &[_]ClangTablegenTarget{.{ .output_basename = "BuiltinsBPF.inc", .flags = &.{"-gen-clang-builtins"} }};
-        const builtins_nvptx_targets = &[_]ClangTablegenTarget{.{ .output_basename = "BuiltinsNVPTX.inc", .flags = &.{"-gen-clang-builtins"} }};
-        const builtins_riscv_targets = &[_]ClangTablegenTarget{.{ .output_basename = "BuiltinsRISCV.inc", .flags = &.{"-gen-clang-builtins"} }};
-        const builtins_spirv_targets = &[_]ClangTablegenTarget{.{ .output_basename = "BuiltinsSPIRV.inc", .flags = &.{"-gen-clang-builtins"} }};
-        const builtins_x86_targets = &[_]ClangTablegenTarget{.{ .output_basename = "BuiltinsX86.inc", .flags = &.{"-gen-clang-builtins"} }};
-        const builtins_x86_64_targets = &[_]ClangTablegenTarget{.{ .output_basename = "BuiltinsX86_64.inc", .flags = &.{"-gen-clang-builtins"} }};
 
         out.* = Paths{
             .root = root,
@@ -258,50 +172,6 @@ pub const Paths = struct {
                     .clang = .{
                         .basic = .{
                             .path = root.path(b, "clang/include/clang/Basic"),
-                            .attr_td = ClangTablegenDescription{
-                                .td_file = root.path(b, "clang/include/clang/Basic/Attr.td"),
-                                .targets = attr_targets,
-                            },
-                            .diagnostic_td = ClangTablegenDescription{
-                                .td_file = root.path(b, "clang/include/clang/Basic/Diagnostic.td"),
-                                .targets = diag_target_list.toOwnedSlice() catch @panic("OOM"),
-                            },
-                            .declnodes_td = ClangTablegenDescription{
-                                .td_file = root.path(b, "clang/include/clang/Basic/DeclNodes.td"),
-                                .targets = declnode_targets,
-                            },
-                            .builtins_td = ClangTablegenDescription{
-                                .td_file = root.path(b, "clang/include/clang/Basic/Builtins.td"),
-                                .targets = builtins_targets,
-                            },
-                            .builtins_bpf_td = ClangTablegenDescription{
-                                .td_file = root.path(b, "clang/include/clang/Basic/BuiltinsBPF.td"),
-                                .targets = builtins_bpf_targets,
-                            },
-                            .builtins_hexagon_td = ClangTablegenDescription{
-                                .td_file = root.path(b, "clang/include/clang/Basic/BuiltinsHexagon.td"),
-                                .targets = builtins_hexagon_targets,
-                            },
-                            .builtins_nvptx_td = ClangTablegenDescription{
-                                .td_file = root.path(b, "clang/include/clang/Basic/BuiltinsNVPTX.td"),
-                                .targets = builtins_nvptx_targets,
-                            },
-                            .builtins_riscv_td = ClangTablegenDescription{
-                                .td_file = root.path(b, "clang/include/clang/Basic/BuiltinsRISCV.td"),
-                                .targets = builtins_riscv_targets,
-                            },
-                            .builtins_spirv_td = ClangTablegenDescription{
-                                .td_file = root.path(b, "clang/include/clang/Basic/BuiltinsSPIRV.td"),
-                                .targets = builtins_spirv_targets,
-                            },
-                            .builtins_x86_td = ClangTablegenDescription{
-                                .td_file = root.path(b, "clang/include/clang/Basic/BuiltinsX86.td"),
-                                .targets = builtins_x86_targets,
-                            },
-                            .builtins_x86_64_td = ClangTablegenDescription{
-                                .td_file = root.path(b, "clang/include/clang/Basic/BuiltinsX86_64.td"),
-                                .targets = builtins_x86_64_targets,
-                            },
                         },
                     },
                 },
@@ -384,6 +254,8 @@ pub const Targets = struct {
     // llvm/include/llvm/Config/abi-breaking.h.cmake
     llvm_abi_breaking_config_header: ?*std.Build.Step.ConfigHeader = null,
 
+    llvm_features_inc_config_header: ?*std.Build.Step.ConfigHeader = null,
+
     // built for the host system
     llvm_host_component_demangle_lib: ?*Compile = null,
     llvm_host_component_support_lib: ?*Compile = null,
@@ -399,6 +271,7 @@ pub const Context = struct {
     targets: Targets,
     paths: *const Paths,
     opts: *const Options,
+    tablegen_files: []const ClangTablegenDescription,
 
     global_system_libraries: std.ArrayList([]const u8),
     global_flags: std.ArrayList([]const u8),
@@ -418,6 +291,7 @@ pub const Context = struct {
             .targets = .{},
             .paths = Paths.new(b, llvm_source_root),
             .opts = allocated_opts,
+            .tablegen_files = clang_tablegen_descriptions.getTablegenDescriptions(b, llvm_source_root),
             .global_system_libraries = std.ArrayList([]const u8).initCapacity(b.allocator, 50) catch @panic("OOM"),
             .global_flags = std.ArrayList([]const u8).initCapacity(b.allocator, 50) catch @panic("OOM"),
         };
@@ -666,19 +540,9 @@ pub fn build(b: *std.Build) !void {
     ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.llvm.include.path);
     ctx.targets.clangd_lib.?.addConfigHeader(ctx.targets.llvm_public_config_header.?);
     ctx.targets.clangd_lib.?.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
+    ctx.targets.clangd_lib.?.addConfigHeader(ctx.targets.llvm_features_inc_config_header.?);
     // TODO: configure and install clang-tidy headers, add the build dir as include path
 
-    ctx.targets.clangd_lib.?.addConfigHeader(b.addConfigHeader(
-        .{ .style = .{ .cmake = ctx.paths.clang_tools_extra.clangd.path.path(b, "Features.inc.in") } },
-        .{
-            .CLANGD_BUILD_XPC = clangd_build_xpc,
-            .CLANGD_ENABLE_REMOTE = clangd_enable_remote,
-            .ENABLE_GRPC_REFLECTION = enable_grpc_reflection,
-            .CLANGD_MALLOC_TRIM = clangd_malloc_trim,
-            .CLANGD_TIDY_CHECKS = clangd_tidy_checks,
-            .CLANGD_DECISION_FOREST = clangd_decision_forest,
-        },
-    ));
     ctx.targets.clangd_lib.?.addCSourceFiles(.{
         .root = ctx.paths.clang_tools_extra.clangd.path,
         .files = sources.cpp_files,

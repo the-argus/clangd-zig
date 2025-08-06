@@ -51,6 +51,18 @@ pub fn build(ctx: *Context) void {
         ),
     });
 
+    ctx.targets.llvm_features_inc_config_header = ctx.b.addConfigHeader(
+        .{ .style = .{ .cmake = ctx.paths.clang_tools_extra.clangd.path.path(ctx.b, "Features.inc.in") }, .include_path = "Features.inc" },
+        .{
+            .CLANGD_BUILD_XPC = ctx.opts.clangd_build_xpc,
+            .CLANGD_ENABLE_REMOTE = ctx.opts.clangd_enable_remote,
+            .ENABLE_GRPC_REFLECTION = ctx.opts.enable_grpc_reflection,
+            .CLANGD_MALLOC_TRIM = ctx.opts.clangd_malloc_trim,
+            .CLANGD_TIDY_CHECKS = ctx.opts.clangd_tidy_checks,
+            .CLANGD_DECISION_FOREST = ctx.opts.clangd_decision_forest,
+        },
+    );
+
     const public_opts = ctx.paths.llvm.include.llvm.config.llvm_public_config_header.makeOptions();
     ctx.targets.llvm_public_config_header = ctx.b.addConfigHeader(public_opts, .{
         // render_cmake in ConfigHeader niceley interprets these correctly

@@ -1,8 +1,8 @@
 const std = @import("std");
 
 const Context = @import("build.zig").Context;
-const ClangTablegenTarget = @import("build.zig").ClangTablegenTarget;
-const ClangTablegenDescription = @import("build.zig").ClangTablegenDescription;
+const ClangTablegenTarget = @import("clang_tablegen_descriptions.zig").ClangTablegenTarget;
+const ClangTablegenDescription = @import("clang_tablegen_descriptions.zig").ClangTablegenDescription;
 const sources = @import("clangd_sources.zig");
 
 pub const TableGenOptions = struct {
@@ -38,7 +38,7 @@ pub fn clangBasicAddInc(ctx: *Context, wfs: *std.Build.Step.WriteFile, desc: Cla
         });
         _ = wfs.addCopyFile(
             regular_keyword_attr_info_result_file,
-            ctx.b.pathJoin(&.{ "clang", "Basic", target.output_basename }),
+            ctx.b.pathJoin(&.{ target.folder.toRelativePath(), target.output_basename }),
         );
     }
 }
@@ -86,16 +86,8 @@ pub fn build(ctx: *Context) void {
     const writefile_step = ctx.b.addWriteFiles();
 
     // generate all the needed .inc files and copy them into the subdir
-    clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.attr_td);
-    clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.declnodes_td);
-    clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.diagnostic_td);
-    clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.builtins_td);
-    clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.builtins_bpf_td);
-    clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.builtins_hexagon_td);
-    clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.builtins_nvptx_td);
-    clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.builtins_riscv_td);
-    clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.builtins_spirv_td);
-    clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.builtins_x86_td);
-    clangBasicAddInc(ctx, writefile_step, ctx.paths.clang.include.clang.basic.builtins_x86_64_td);
+    for (ctx.tablegen_files) |desc| {
+        clangBasicAddInc(ctx, writefile_step, desc);
+    }
     ctx.targets.clang_tablegenerated_incs = writefile_step.getDirectory();
 }
