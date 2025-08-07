@@ -63,6 +63,14 @@ pub const ABIBreakingChecks = enum {
     }
 };
 
+pub const TableGenOptions = struct {
+    source_file: std.Build.LazyPath,
+    output_filename: []const u8,
+    args: []const []const u8 = &.{},
+    // these directories will have -I prefixing them and then be passed as args
+    include_dir_args: []const std.Build.LazyPath = &.{},
+};
+
 pub const Paths = struct {
     root: LazyPath,
     // subdirs in the root directory
@@ -112,7 +120,12 @@ pub const Paths = struct {
                     llvm_public_config_header: ConfigHeader,
                     llvm_abi_breaking_config_header: ConfigHeader,
                 },
-
+                frontend: struct {
+                    path: LazyPath,
+                    openmp: struct {
+                        path: LazyPath,
+                    },
+                },
                 support: struct {
                     path: LazyPath,
                 },
@@ -140,6 +153,15 @@ pub const Paths = struct {
                     path: LazyPath,
                 },
                 windows: struct {
+                    path: LazyPath,
+                },
+            },
+        },
+        utils: struct {
+            path: LazyPath,
+            tablegen: struct {
+                path: LazyPath,
+                basic: struct {
                     path: LazyPath,
                 },
             },
@@ -204,6 +226,12 @@ pub const Paths = struct {
                                 .output_include_path = "llvm/Config/abi-breaking.h",
                             },
                         },
+                        .frontend = .{
+                            .path = root.path(b, "llvm/include/llvm/Frontend"),
+                            .openmp = .{
+                                .path = root.path(b, "llvm/include/llvm/Frontend/OpenMP"),
+                            },
+                        },
                         .support = .{
                             .path = root.path(b, "llvm/include/llvm/Support"),
                         },
@@ -233,6 +261,15 @@ pub const Paths = struct {
                         },
                     },
                 },
+                .utils = .{
+                    .path = root.path(b, "llvm/utils"),
+                    .tablegen = .{
+                        .path = root.path(b, "llvm/utils/TableGen"),
+                        .basic = .{
+                            .path = root.path(b, "llvm/utils/TableGen/Basic"),
+                        },
+                    },
+                },
             },
         };
 
@@ -245,7 +282,6 @@ pub const Targets = struct {
     clangd_lib: ?*Compile = null,
     clangd_main_lib: ?*Compile = null,
     clangd_exe: ?*Compile = null,
-    llvm_tblgen_exe: ?*Compile = null, // built for host system
 
     // llvm/include/llvm/Config/llvm-config.h.cmake
     llvm_public_config_header: ?*std.Build.Step.ConfigHeader = null,
@@ -253,16 +289,20 @@ pub const Targets = struct {
     llvm_private_config_header: ?*std.Build.Step.ConfigHeader = null,
     // llvm/include/llvm/Config/abi-breaking.h.cmake
     llvm_abi_breaking_config_header: ?*std.Build.Step.ConfigHeader = null,
-
     llvm_features_inc_config_header: ?*std.Build.Step.ConfigHeader = null,
 
-    // built for the host system
     llvm_host_component_demangle_lib: ?*Compile = null,
     llvm_host_component_support_lib: ?*Compile = null,
     llvm_host_component_tablegen_lib: ?*Compile = null,
+    llvm_host_component_tblgen_basic_lib: ?*Compile = null,
+    llvm_host_component_tblgen_exe: ?*Compile = null,
+    llvm_host_component_tblgen_min_exe: ?*Compile = null, // for bootstrapping
 
+    clang_host_component_tblgen_exe: ?*Compile = null,
     clang_host_component_support_lib: ?*Compile = null,
+
     clang_tablegenerated_incs: ?LazyPath = null,
+    llvm_tablegenerated_incs: ?LazyPath = null,
 };
 
 pub const Context = struct {
@@ -271,7 +311,9 @@ pub const Context = struct {
     targets: Targets,
     paths: *const Paths,
     opts: *const Options,
-    tablegen_files: []const ClangTablegenDescription,
+    clang_tablegen_files: []const ClangTablegenDescription,
+    llvm_tablegen_files: []const ClangTablegenDescription,
+    llvm_min_tablegen_files: []const ClangTablegenDescription,
 
     global_system_libraries: std.ArrayList([]const u8),
     global_flags: std.ArrayList([]const u8),
@@ -291,7 +333,9 @@ pub const Context = struct {
             .targets = .{},
             .paths = Paths.new(b, llvm_source_root),
             .opts = allocated_opts,
-            .tablegen_files = clang_tablegen_descriptions.getTablegenDescriptions(b, llvm_source_root),
+            .clang_tablegen_files = clang_tablegen_descriptions.getClangTablegenDescriptions(b, llvm_source_root),
+            .llvm_tablegen_files = clang_tablegen_descriptions.getLLVMTablegenDescriptions(b, llvm_source_root),
+            .llvm_min_tablegen_files = clang_tablegen_descriptions.getLLVMMinTablegenDescriptions(b, llvm_source_root),
             .global_system_libraries = std.ArrayList([]const u8).initCapacity(b.allocator, 50) catch @panic("OOM"),
             .global_flags = std.ArrayList([]const u8).initCapacity(b.allocator, 50) catch @panic("OOM"),
         };
@@ -306,6 +350,37 @@ pub const Context = struct {
         }
 
         return out;
+    }
+
+    fn tablegen(
+        ctx: @This(),
+        executable: *Compile,
+        options: TableGenOptions,
+    ) std.Build.LazyPath {
+        const tblgen_invocation = ctx.b.addRunArtifact(executable);
+        tblgen_invocation.addFileArg(options.source_file);
+        tblgen_invocation.addArg("-o");
+        const generated_file = tblgen_invocation.addOutputFileArg(options.output_filename);
+        tblgen_invocation.addArgs(options.args);
+        for (options.include_dir_args) |include_dir| {
+            tblgen_invocation.addPrefixedDirectoryArg("-I", include_dir);
+        }
+        return generated_file;
+    }
+
+    pub fn addTablegenOutputFileToWriteFileStep(ctx: @This(), wfs: *std.Build.Step.WriteFile, tblgen_exe: *Compile, desc: ClangTablegenDescription) void {
+        for (desc.targets) |target| {
+            const result_file = ctx.tablegen(tblgen_exe, .{
+                .output_filename = target.output_basename,
+                .args = target.flags,
+                .include_dir_args = &.{ ctx.paths.clang.include.path, ctx.paths.clang.include.clang.basic.path },
+                .source_file = desc.td_file,
+            });
+            _ = wfs.addCopyFile(
+                result_file,
+                ctx.b.pathJoin(&.{ target.folder.toRelativePath(), target.output_basename }),
+            );
+        }
     }
 
     pub fn makeFlags(self: @This()) std.ArrayList([]const u8) {
@@ -323,6 +398,10 @@ pub const Context = struct {
         var opts_copy = self.module_opts;
         opts_copy.target = self.b.graph.host;
         return self.b.createModule(opts_copy);
+    }
+
+    pub fn dupeGlobalFlags(self: @This()) []const []const u8 {
+        return self.b.allocator.dupe([]const u8, self.global_flags.items) catch @panic("OOM");
     }
 
     pub fn osIsUnixLike(os: std.Target.Os.Tag) bool {
@@ -526,6 +605,7 @@ pub fn build(b: *std.Build) !void {
 
     // fill out the components of ctx.targets which begin with "llvm_"
     @import("llvm_zig.zig").build(ctx);
+    @import("clang_include_basic.zig").build(ctx);
 
     ctx.targets.clangd_lib = b.addLibrary(.{
         .name = "clangd_lib",
@@ -537,6 +617,7 @@ pub fn build(b: *std.Build) !void {
     ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.clang_tools_extra.clangd.path);
     ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.clang.include.path);
     ctx.targets.clangd_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
+    ctx.targets.clangd_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
     ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.llvm.include.path);
     ctx.targets.clangd_lib.?.addConfigHeader(ctx.targets.llvm_public_config_header.?);
     ctx.targets.clangd_lib.?.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
@@ -590,9 +671,13 @@ pub fn build(b: *std.Build) !void {
     ctx.targets.clangd_main_lib.?.addCSourceFiles(.{
         .root = ctx.paths.clang_tools_extra.clangd.tool.path,
         .files = sources.tool_lib_cpp_files,
-        .flags = &.{},
+        .flags = ctx.dupeGlobalFlags(),
     });
     ctx.targets.clangd_main_lib.?.addIncludePath(ctx.paths.llvm.include.path);
+    ctx.targets.clangd_main_lib.?.addIncludePath(ctx.paths.clang_tools_extra.clangd.path);
+    ctx.targets.clangd_main_lib.?.addIncludePath(ctx.paths.clang.include.path);
+    ctx.targets.clangd_main_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
+    ctx.targets.clangd_main_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
     ctx.targets.clangd_main_lib.?.addConfigHeader(ctx.targets.llvm_public_config_header.?);
     ctx.targets.clangd_main_lib.?.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
 

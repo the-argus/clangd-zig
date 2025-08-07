@@ -96,7 +96,115 @@ pub const cpp_files = &.{
     "refactor/Tweak.cpp",
 };
 
-pub const tablegen_cpp_files = &.{
+pub const llvm_tablegen_common_lib_cpp_files = &.{
+    "GlobalISel/CodeExpander.cpp",
+    "GlobalISel/CombinerUtils.cpp",
+    "GlobalISel/CXXPredicates.cpp",
+    "GlobalISel/GlobalISelMatchTable.cpp",
+    "GlobalISel/GlobalISelMatchTableExecutorEmitter.cpp",
+    "GlobalISel/PatternParser.cpp",
+    "GlobalISel/Patterns.cpp",
+
+    "AsmWriterInst.cpp",
+    "CodeGenDAGPatterns.cpp",
+    "CodeGenHwModes.cpp",
+    "CodeGenInstAlias.cpp",
+    "CodeGenInstruction.cpp",
+    "CodeGenRegisters.cpp",
+    "CodeGenSchedule.cpp",
+    "CodeGenTarget.cpp",
+    "DAGISelMatcher.cpp",
+    "InfoByHwMode.cpp",
+    "OptEmitter.cpp",
+    "PredicateExpander.cpp",
+    "SubtargetFeatureInfo.cpp",
+    "Types.cpp",
+    "Utils.cpp",
+    "VarLenCodeEmitterGen.cpp",
+};
+
+pub const llvm_tablegen_basic_lib_cpp_files = &.{
+    "ARMTargetDefEmitter.cpp",
+    "Attributes.cpp",
+    "CodeGenIntrinsics.cpp",
+    "DirectiveEmitter.cpp",
+    "IntrinsicEmitter.cpp",
+    "RISCVTargetDefEmitter.cpp",
+    "SDNodeProperties.cpp",
+    "TableGen.cpp",
+    "VTEmitter.cpp",
+};
+
+pub const llvm_min_tablegen_cpp_files = &.{
+    "llvm-min-tblgen.cpp",
+};
+
+pub const llvm_tablegen_cpp_files = &.{
+    "AsmMatcherEmitter.cpp",
+    "AsmWriterEmitter.cpp",
+    "CallingConvEmitter.cpp",
+    "CodeEmitterGen.cpp",
+    "CodeGenMapTable.cpp",
+    "CompressInstEmitter.cpp",
+    "CTagsEmitter.cpp",
+    "DAGISelEmitter.cpp",
+    "DAGISelMatcherEmitter.cpp",
+    "DAGISelMatcherGen.cpp",
+    "DAGISelMatcherOpt.cpp",
+    "DecoderEmitter.cpp",
+    "DFAEmitter.cpp",
+    "DFAPacketizerEmitter.cpp",
+    "DisassemblerEmitter.cpp",
+    "DXILEmitter.cpp",
+    "ExegesisEmitter.cpp",
+    "FastISelEmitter.cpp",
+    "GlobalISelCombinerEmitter.cpp",
+    "GlobalISelEmitter.cpp",
+    "InstrDocsEmitter.cpp",
+    "InstrInfoEmitter.cpp",
+    "llvm-tblgen.cpp",
+    "MacroFusionPredicatorEmitter.cpp",
+    "OptionParserEmitter.cpp",
+    "OptionRSTEmitter.cpp",
+    "PseudoLoweringEmitter.cpp",
+    "RegisterBankEmitter.cpp",
+    "RegisterInfoEmitter.cpp",
+    "SDNodeInfoEmitter.cpp",
+    "SearchableTableEmitter.cpp",
+    "SubtargetEmitter.cpp",
+    "WebAssemblyDisassemblerEmitter.cpp",
+    "X86InstrMappingEmitter.cpp",
+    "X86DisassemblerTables.cpp",
+    "X86FoldTablesEmitter.cpp",
+    "X86MnemonicTables.cpp",
+    "X86ModRMFilters.cpp",
+    "X86RecognizableInstr.cpp",
+};
+
+pub const llvm_tablegen_lib_cpp_files = &.{
+    "DetailedRecordsBackend.cpp",
+    "Error.cpp",
+    "JSONBackend.cpp",
+    "Main.cpp",
+    "Parser.cpp",
+    "Record.cpp",
+    "SetTheory.cpp",
+    "StringMatcher.cpp",
+    "TableGenBackend.cpp",
+    "TableGenBackendSkeleton.cpp",
+    "TGLexer.cpp",
+    "TGParser.cpp",
+    "TGTimer.cpp",
+};
+
+pub const lldb_tablegen_cpp_files = &.{
+    "LLDBOptionDefEmitter.cpp",
+    "LLDBPropertyDefEmitter.cpp",
+    "LLDBTableGen.cpp",
+    "LLDBTableGenUtils.cpp",
+};
+
+pub const clang_tablegen_cpp_files = &.{
     "ASTTableGen.cpp",
     "ClangASTNodesEmitter.cpp",
     "ClangASTPropertiesEmitter.cpp",
@@ -118,22 +226,6 @@ pub const tablegen_cpp_files = &.{
     "RISCVVEmitter.cpp",
     "SveEmitter.cpp",
     "TableGen.cpp",
-};
-
-pub const tablegen_lib_cpp_files = &.{
-    "DetailedRecordsBackend.cpp",
-    "Error.cpp",
-    "JSONBackend.cpp",
-    "Main.cpp",
-    "Parser.cpp",
-    "Record.cpp",
-    "SetTheory.cpp",
-    "StringMatcher.cpp",
-    "TableGenBackend.cpp",
-    "TableGenBackendSkeleton.cpp",
-    "TGLexer.cpp",
-    "TGParser.cpp",
-    "TGTimer.cpp",
 };
 
 pub const clang_support_lib_cpp_files = &.{

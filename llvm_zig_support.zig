@@ -8,7 +8,7 @@ const Context = @import("build.zig").Context;
 pub fn build(ctx: *Context) void {
     ctx.targets.llvm_host_component_support_lib = ctx.b.addLibrary(.{
         .name = "support",
-        .root_module = ctx.makeModule(),
+        .root_module = ctx.makeHostModule(),
         .linkage = .static,
     });
 
@@ -70,7 +70,12 @@ pub fn build(ctx: *Context) void {
     ctx.targets.llvm_host_component_support_lib.?.addConfigHeader(ctx.targets.llvm_private_config_header.?);
     ctx.targets.llvm_host_component_support_lib.?.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
     ctx.targets.llvm_host_component_support_lib.?.linkLibrary(ctx.targets.llvm_host_component_demangle_lib.?);
-    ctx.targets.llvm_host_component_support_lib.?.linkLibrary(ctx.targets.zlib.?);
+
+    if (ctx.targets.zlib) |zlib| {
+        ctx.targets.llvm_host_component_support_lib.?.linkLibrary(zlib);
+    } else {
+        std.debug.assert(!ctx.opts.llvm_enable_zlib);
+    }
 }
 
 const cpp_files = &.{

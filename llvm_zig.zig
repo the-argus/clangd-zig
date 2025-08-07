@@ -40,7 +40,7 @@ fn llvmTargetToolString(ctx: *Context, str: []const u8) []const u8 {
 }
 
 /// Fills out all the fields in Context.targets that start with llvm_*, pulling
-/// from Context.options
+/// from Context.options. called from root build.zig
 pub fn build(ctx: *Context) void {
     const abi_breaking_opts = ctx.paths.llvm.include.llvm.config.llvm_abi_breaking_config_header.makeOptions();
     ctx.targets.llvm_abi_breaking_config_header = ctx.b.addConfigHeader(abi_breaking_opts, .{
@@ -243,30 +243,106 @@ pub fn build(ctx: *Context) void {
         .root = ctx.paths.llvm.lib.demangle.path,
         .files = sources.demangle_cpp_files,
         .language = .cpp,
-        .flags = &.{},
+        .flags = ctx.dupeGlobalFlags(),
     });
     ctx.targets.llvm_host_component_demangle_lib.?.linkLibCpp();
     ctx.targets.llvm_host_component_demangle_lib.?.addIncludePath(ctx.paths.llvm.include.path);
 
+    // depends on demangle lib along with the abi-breaking, public and private config headers
     @import("llvm_zig_support.zig").build(ctx);
 
-    ctx.targets.clang_host_component_support_lib = ctx.b.addLibrary(.{
-        .name = "clangsupport",
+    // build llvm tablegen lib
+    ctx.targets.llvm_host_component_tablegen_lib = ctx.b.addLibrary(.{
+        .name = "LLVMTableGen",
         .root_module = ctx.makeHostModule(),
     });
-    ctx.targets.clang_host_component_support_lib.?.addCSourceFiles(.{
-        .root = ctx.paths.clang.lib.support.path,
-        .files = sources.clang_support_lib_cpp_files,
-        .flags = &.{},
+    ctx.targets.llvm_host_component_tablegen_lib.?.addCSourceFiles(.{
+        .root = ctx.paths.llvm.lib.tablegen.path,
+        .files = sources.llvm_tablegen_lib_cpp_files,
+        .flags = ctx.dupeGlobalFlags(),
         .language = .cpp,
     });
-    ctx.targets.clang_host_component_support_lib.?.linkLibCpp();
-    ctx.targets.clang_host_component_support_lib.?.addIncludePath(ctx.paths.clang.include.path);
-    ctx.targets.clang_host_component_support_lib.?.addIncludePath(ctx.paths.llvm.include.path);
-    ctx.targets.clang_host_component_support_lib.?.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
-    ctx.targets.clang_host_component_support_lib.?.addConfigHeader(ctx.targets.llvm_public_config_header.?);
+    ctx.targets.llvm_host_component_tablegen_lib.?.linkLibCpp();
+    ctx.targets.llvm_host_component_tablegen_lib.?.addIncludePath(ctx.paths.llvm.lib.tablegen.path);
+    ctx.targets.llvm_host_component_tablegen_lib.?.addIncludePath(ctx.paths.llvm.include.path);
+    // ctx.targets.llvm_host_component_tablegen_lib.?.addIncludePath(ctx.targets.llvm_min_tablegenerated_incs.?);
+    ctx.targets.llvm_host_component_tablegen_lib.?.addConfigHeader(ctx.targets.llvm_public_config_header.?);
+    ctx.targets.llvm_host_component_tablegen_lib.?.addConfigHeader(ctx.targets.llvm_private_config_header.?);
+    ctx.targets.llvm_host_component_tablegen_lib.?.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
+    ctx.targets.llvm_host_component_tablegen_lib.?.linkLibrary(ctx.targets.llvm_host_component_support_lib.?);
 
-    @import("clang_include_basic.zig").build(ctx);
+    // build llvm/utils/TableGen/Basic
+    ctx.targets.llvm_host_component_tblgen_basic_lib = ctx.b.addLibrary(.{
+        .name = "Basic",
+        .root_module = ctx.makeHostModule(),
+    });
+    ctx.targets.llvm_host_component_tblgen_basic_lib.?.addCSourceFiles(.{
+        .root = ctx.paths.llvm.utils.tablegen.basic.path,
+        .files = sources.llvm_tablegen_basic_lib_cpp_files,
+        .flags = ctx.dupeGlobalFlags(),
+        .language = .cpp,
+    });
+    ctx.targets.llvm_host_component_tblgen_basic_lib.?.linkLibrary(ctx.targets.llvm_host_component_tablegen_lib.?);
+    ctx.targets.llvm_host_component_tblgen_basic_lib.?.addConfigHeader(ctx.targets.llvm_public_config_header.?);
+    ctx.targets.llvm_host_component_tblgen_basic_lib.?.addConfigHeader(ctx.targets.llvm_private_config_header.?);
+    ctx.targets.llvm_host_component_tblgen_basic_lib.?.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
+    ctx.targets.llvm_host_component_tblgen_basic_lib.?.addIncludePath(ctx.paths.llvm.include.path);
+
+    // create llvm-min-tablgen to bootstrap regular llvm tablegen
+    ctx.targets.llvm_host_component_tblgen_min_exe = ctx.b.addExecutable(.{
+        .name = "llvm-min-tablgen",
+        .root_module = ctx.makeHostModule(),
+    });
+    ctx.targets.llvm_host_component_tblgen_min_exe.?.addCSourceFiles(.{
+        .root = ctx.paths.llvm.utils.tablegen.path,
+        .flags = ctx.dupeGlobalFlags(),
+        .files = sources.llvm_min_tablegen_cpp_files,
+        .language = .cpp,
+    });
+    ctx.targets.llvm_host_component_tblgen_min_exe.?.addConfigHeader(ctx.targets.llvm_public_config_header.?);
+    ctx.targets.llvm_host_component_tblgen_min_exe.?.addConfigHeader(ctx.targets.llvm_private_config_header.?);
+    ctx.targets.llvm_host_component_tblgen_min_exe.?.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
+    ctx.targets.llvm_host_component_tblgen_min_exe.?.addIncludePath(ctx.paths.llvm.include.path);
+    ctx.targets.llvm_host_component_tblgen_min_exe.?.linkLibrary(ctx.targets.llvm_host_component_tblgen_basic_lib.?);
+
+    const llvm_min_tablegenerated_incs = block: {
+        const writefile_step = ctx.b.addWriteFiles();
+        for (ctx.llvm_min_tablegen_files) |desc| {
+            ctx.addTablegenOutputFileToWriteFileStep(writefile_step, ctx.targets.llvm_host_component_tblgen_min_exe.?, desc);
+        }
+        break :block writefile_step.getDirectory();
+    };
+
+    // link libLLVMTableGen lib into executable
+    ctx.targets.llvm_host_component_tblgen_exe = ctx.b.addExecutable(.{
+        .name = "llvm-tblgen",
+        .root_module = ctx.makeHostModule(),
+    });
+    ctx.targets.llvm_host_component_tblgen_exe.?.addCSourceFiles(.{
+        .root = ctx.paths.llvm.utils.tablegen.path,
+        .files = sources.llvm_tablegen_cpp_files,
+        .flags = ctx.dupeGlobalFlags(),
+        .language = .cpp,
+    });
+    ctx.targets.llvm_host_component_tblgen_exe.?.linkLibCpp();
+    ctx.targets.llvm_host_component_tblgen_exe.?.addIncludePath(ctx.paths.llvm.include.path);
+    ctx.targets.llvm_host_component_tblgen_exe.?.addIncludePath(llvm_min_tablegenerated_incs);
+    ctx.targets.llvm_host_component_tblgen_exe.?.addConfigHeader(ctx.targets.llvm_public_config_header.?);
+    ctx.targets.llvm_host_component_tblgen_exe.?.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
+    ctx.targets.llvm_host_component_tblgen_exe.?.linkLibrary(ctx.targets.llvm_host_component_support_lib.?);
+    ctx.targets.llvm_host_component_tblgen_exe.?.linkLibrary(ctx.targets.llvm_host_component_tablegen_lib.?);
+
+    {
+        const writefile_step = ctx.b.addWriteFiles();
+        for (ctx.llvm_tablegen_files) |desc| {
+            ctx.addTablegenOutputFileToWriteFileStep(writefile_step, ctx.targets.llvm_host_component_tblgen_exe.?, desc);
+        }
+        // also do everything that tablegen min had
+        for (ctx.llvm_min_tablegen_files) |desc| {
+            ctx.addTablegenOutputFileToWriteFileStep(writefile_step, ctx.targets.llvm_host_component_tblgen_exe.?, desc);
+        }
+        ctx.targets.llvm_tablegenerated_incs = writefile_step.getDirectory();
+    }
 }
 
 fn getLLVMNativeArch(arch: std.Target.Cpu.Arch) []const u8 {

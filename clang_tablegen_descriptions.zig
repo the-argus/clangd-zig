@@ -10,16 +10,20 @@ pub const ClangTablegenTarget = struct {
 
 pub const TablegenOutputFolder = enum {
     basic,
+    basic_root,
     ast,
     driver,
     openmp,
+    codegen,
 
     pub fn toRelativePath(self: @This()) []const u8 {
         return switch (self) {
             .basic => "clang/Basic",
+            .basic_root => "Basic",
             .ast => "clang/AST",
             .driver => "clang/Driver",
             .openmp => "llvm/Frontend/OpenMP",
+            .codegen => "llvm/CodeGen",
         };
     }
 };
@@ -29,7 +33,7 @@ pub const ClangTablegenDescription = struct {
     targets: []const ClangTablegenTarget,
 };
 
-pub fn getTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []const ClangTablegenDescription {
+pub fn getClangTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []const ClangTablegenDescription {
     const initial_diag_target_list = &.{
         ClangTablegenTarget{
             .output_basename = "DiagnosticGroups.inc",
@@ -145,12 +149,6 @@ pub fn getTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []const 
     const comment_command_info_targets = &[_]ClangTablegenTarget{.{ .output_basename = "CommentCommandInfo.inc", .flags = &.{"-gen-clang-comment-command-info"}, .folder = .ast }};
     const comment_command_list_targets = &[_]ClangTablegenTarget{.{ .output_basename = "CommentCommandList.inc", .flags = &.{"-gen-clang-comment-command-list"}, .folder = .ast }};
     const stmt_data_collectors_targets = &[_]ClangTablegenTarget{.{ .output_basename = "StmtDataCollectors.inc", .flags = &.{"-gen-clang-data-collectors"}, .folder = .ast }};
-
-    // const options_targets = &[_]ClangTablegenTarget{.{ .output_basename = "Options.inc", .flags = &.{"-gen-opt-parser-defs"}, .folder = .driver }};
-    // const openmp_targets = &[_]ClangTablegenTarget{
-    //     .{ .output_basename = "OMP.h.inc", .flags = &.{"--gen-directive-decl"}, .folder = .openmp },
-    //     .{ .output_basename = "OMP.inc", .flags = &.{"--gen-directive-impl"}, .folder = .openmp },
-    // };
 
     const descs = [_]ClangTablegenDescription{
         .{
@@ -357,16 +355,47 @@ pub fn getTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []const 
             .td_file = root.path(b, "clang/include/clang/AST/StmtDataCollectors.td"),
             .targets = stmt_data_collectors_targets,
         },
+    };
+
+    const allocated = b.allocator.create(@TypeOf(descs)) catch @panic("OOM");
+    allocated.* = descs;
+    return &allocated.*;
+}
+
+pub fn getLLVMTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []const ClangTablegenDescription {
+    // const options_targets = &[_]ClangTablegenTarget{.{ .output_basename = "Options.inc", .flags = &.{"-gen-opt-parser-defs"}, .folder = .driver }};
+    const openmp_targets = &[_]ClangTablegenTarget{
+        .{ .output_basename = "OMP.h.inc", .flags = &.{"--gen-directive-decl"}, .folder = .openmp },
+        .{ .output_basename = "OMP.inc", .flags = &.{"--gen-directive-impl"}, .folder = .openmp },
+    };
+
+    const descs = [_]ClangTablegenDescription{
         // .{
         //     .td_file = root.path(b, "clang/include/clang/Driver/Options.td"),
         //     .targets = options_targets,
         // },
-        // .{
-        //     .td_file = root.path(b, "llvm/include/llvm/Frontend/OpenMP/OMP.td"),
-        //     .targets = openmp_targets,
-        // },
+        .{
+            .td_file = root.path(b, "llvm/include/llvm/Frontend/OpenMP/OMP.td"),
+            .targets = openmp_targets,
+        },
+    };
+    const allocated = b.allocator.create(@TypeOf(descs)) catch @panic("OOM");
+    allocated.* = descs;
+    return &allocated.*;
+}
+
+/// Tablegen tasks that can be done with llvm-min-tblgen
+pub fn getLLVMMinTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []const ClangTablegenDescription {
+    const codegen_targets = &[_]ClangTablegenTarget{
+        .{ .output_basename = "GenVT.inc", .flags = &.{"-gen-vt"}, .folder = .codegen },
     };
 
+    const descs = [_]ClangTablegenDescription{
+        .{
+            .td_file = root.path(b, "llvm/include/llvm/CodeGen/ValueTypes.td"),
+            .targets = codegen_targets,
+        },
+    };
     const allocated = b.allocator.create(@TypeOf(descs)) catch @panic("OOM");
     allocated.* = descs;
     return &allocated.*;
