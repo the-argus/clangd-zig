@@ -164,6 +164,12 @@ pub const Paths = struct {
                 basic: struct {
                     path: LazyPath,
                 },
+                common: struct {
+                    path: LazyPath,
+                    globalisel: struct {
+                        path: LazyPath,
+                    },
+                },
             },
         },
     },
@@ -268,6 +274,12 @@ pub const Paths = struct {
                         .basic = .{
                             .path = root.path(b, "llvm/utils/TableGen/Basic"),
                         },
+                        .common = .{
+                            .path = root.path(b, "llvm/utils/TableGen/Common"),
+                            .globalisel = .{
+                                .path = root.path(b, "llvm/utils/TableGen/Common/GlobalISel"),
+                            },
+                        },
                     },
                 },
             },
@@ -295,6 +307,7 @@ pub const Targets = struct {
     llvm_host_component_support_lib: ?*Compile = null,
     llvm_host_component_tablegen_lib: ?*Compile = null,
     llvm_host_component_tblgen_basic_lib: ?*Compile = null,
+    llvm_host_component_tblgen_common_lib: ?*Compile = null,
     llvm_host_component_tblgen_exe: ?*Compile = null,
     llvm_host_component_tblgen_min_exe: ?*Compile = null, // for bootstrapping
 
@@ -352,36 +365,39 @@ pub const Context = struct {
         return out;
     }
 
-    pub fn addLLVMLibrary(ctx: *@This(), options: std.Build.LibraryOptions) *Compile {
-        const lib = ctx.b.addLibrary(options);
-        lib.addIncludePath(ctx.paths.llvm.include.path);
-        lib.addConfigHeader(ctx.targets.llvm_public_config_header.?);
-        lib.addConfigHeader(ctx.targets.llvm_private_config_header.?);
-        lib.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
-        lib.linkLibCpp();
-        return lib;
+    fn addLLVMIncludesAndLinks(ctx: @This(), c: *Compile) *Compile {
+        c.addIncludePath(ctx.paths.llvm.include.path);
+        c.addConfigHeader(ctx.targets.llvm_public_config_header.?);
+        c.addConfigHeader(ctx.targets.llvm_private_config_header.?);
+        c.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
+        c.addConfigHeader(ctx.targets.llvm_features_inc_config_header.?);
+        c.linkLibCpp();
+        return c;
     }
 
-    pub fn addLLVMExecutable(ctx: *@This(), options: std.Build.ExecutableOptions) *Compile {
-        const exe = ctx.b.addExecutable(options);
-        exe.addIncludePath(ctx.paths.llvm.include.path);
-        exe.addConfigHeader(ctx.targets.llvm_public_config_header.?);
-        exe.addConfigHeader(ctx.targets.llvm_private_config_header.?);
-        exe.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
-        exe.linkLibCpp();
-        return exe;
+    fn addClangIncludesAndLinks(ctx: @This(), c: *Compile) *Compile {
+        addLLVMIncludesAndLinks(ctx, c).addIncludePath(ctx.paths.clang.include.path);
+        return c;
     }
 
-    pub fn addClangLibrary(ctx: *@This(), options: std.Build.LibraryOptions) *Compile {
-        const lib = ctx.addLLVMLibrary(options);
-        lib.addIncludePath(ctx.paths.clang.include.path);
-        return lib;
+    pub fn addLLVMLibrary(ctx: @This(), options: std.Build.LibraryOptions) *Compile {
+        return addLLVMIncludesAndLinks(ctx, ctx.b.addLibrary(options));
     }
 
-    pub fn addClangExecutable(ctx: *@This(), options: std.Build.ExecutableOptions) *Compile {
-        const exe = ctx.addLLVMExecutable(options);
-        exe.addIncludePath(ctx.paths.clang.include.path);
-        return exe;
+    pub fn addLLVMExecutable(ctx: @This(), options: std.Build.ExecutableOptions) *Compile {
+        return addLLVMIncludesAndLinks(ctx, ctx.b.addExecutable(options));
+    }
+
+    pub fn addLLVMObject(ctx: @This(), options: std.Build.ObjectOptions) *Compile {
+        return addLLVMIncludesAndLinks(ctx, ctx.b.addObject(options));
+    }
+
+    pub fn addClangLibrary(ctx: @This(), options: std.Build.LibraryOptions) *Compile {
+        return addClangIncludesAndLinks(ctx, ctx.b.addLibrary(options));
+    }
+
+    pub fn addClangExecutable(ctx: @This(), options: std.Build.ExecutableOptions) *Compile {
+        return addClangIncludesAndLinks(ctx, ctx.b.addExecutable(options));
     }
 
     fn tablegen(
@@ -392,22 +408,36 @@ pub const Context = struct {
         const tblgen_invocation = ctx.b.addRunArtifact(executable);
         tblgen_invocation.addFileArg(options.source_file);
         tblgen_invocation.addArg("-o");
+
         const generated_file = tblgen_invocation.addOutputFileArg(options.output_filename);
         tblgen_invocation.addArgs(options.args);
+
         for (options.include_dir_args) |include_dir| {
             tblgen_invocation.addPrefixedDirectoryArg("-I", include_dir);
         }
+
         return generated_file;
     }
 
-    pub fn addTablegenOutputFileToWriteFileStep(ctx: @This(), wfs: *std.Build.Step.WriteFile, tblgen_exe: *Compile, desc: ClangTablegenDescription) void {
+    pub fn addTablegenOutputFileToWriteFileStep(
+        ctx: @This(),
+        wfs: *std.Build.Step.WriteFile,
+        tblgen_exe: *Compile,
+        desc: ClangTablegenDescription,
+    ) void {
         for (desc.targets) |target| {
+            var args = std.ArrayList([]const u8).init(ctx.b.allocator);
+            args.ensureTotalCapacity(target.flags.len + 1) catch @panic("OOM");
+            args.appendSlice(target.flags) catch @panic("OOM");
+            args.append("--write-if-changed") catch @panic("OOM");
+
             const result_file = ctx.tablegen(tblgen_exe, .{
                 .output_filename = target.output_basename,
-                .args = target.flags,
-                .include_dir_args = &.{ ctx.paths.clang.include.path, ctx.paths.clang.include.clang.basic.path },
+                .args = args.toOwnedSlice() catch @panic("OOM"),
+                .include_dir_args = desc.td_includes,
                 .source_file = desc.td_file,
             });
+
             _ = wfs.addCopyFile(
                 result_file,
                 ctx.b.pathJoin(&.{ target.folder.toRelativePath(), target.output_basename }),
@@ -639,7 +669,7 @@ pub fn build(b: *std.Build) !void {
     @import("llvm_zig.zig").build(ctx);
     @import("clang.zig").build(ctx);
 
-    ctx.targets.clangd_lib = b.addLibrary(.{
+    ctx.targets.clangd_lib = ctx.addClangLibrary(.{
         .name = "clangd_lib",
         .linkage = .static,
         .root_module = ctx.makeModule(),
@@ -647,13 +677,8 @@ pub fn build(b: *std.Build) !void {
     ctx.targets.clangd_lib.?.linkLibCpp();
     ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.clang_tools_extra.include_cleaner.include.path);
     ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.clang_tools_extra.clangd.path);
-    ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.clang.include.path);
     ctx.targets.clangd_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
     ctx.targets.clangd_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-    ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.llvm.include.path);
-    ctx.targets.clangd_lib.?.addConfigHeader(ctx.targets.llvm_public_config_header.?);
-    ctx.targets.clangd_lib.?.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
-    ctx.targets.clangd_lib.?.addConfigHeader(ctx.targets.llvm_features_inc_config_header.?);
     // TODO: configure and install clang-tidy headers, add the build dir as include path
 
     ctx.targets.clangd_lib.?.addCSourceFiles(.{
@@ -694,7 +719,7 @@ pub fn build(b: *std.Build) !void {
 
     // tool subdir where we build clangd executable ----------------------------
 
-    ctx.targets.clangd_main_lib = b.addLibrary(.{
+    ctx.targets.clangd_main_lib = ctx.addClangLibrary(.{
         .name = "clangd_main_lib",
         .linkage = .static,
         .root_module = ctx.makeModule(),
@@ -705,13 +730,10 @@ pub fn build(b: *std.Build) !void {
         .files = sources.tool_lib_cpp_files,
         .flags = ctx.dupeGlobalFlags(),
     });
-    ctx.targets.clangd_main_lib.?.addIncludePath(ctx.paths.llvm.include.path);
     ctx.targets.clangd_main_lib.?.addIncludePath(ctx.paths.clang_tools_extra.clangd.path);
-    ctx.targets.clangd_main_lib.?.addIncludePath(ctx.paths.clang.include.path);
+    ctx.targets.clangd_main_lib.?.addIncludePath(ctx.paths.clang_tools_extra.include_cleaner.include.path);
     ctx.targets.clangd_main_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
     ctx.targets.clangd_main_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-    ctx.targets.clangd_main_lib.?.addConfigHeader(ctx.targets.llvm_public_config_header.?);
-    ctx.targets.clangd_main_lib.?.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
 
     ctx.targets.clangd_exe = addClangTool(ctx, "clangd");
     ctx.targets.clangd_exe.?.linkLibrary(ctx.targets.clangd_lib.?);

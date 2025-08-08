@@ -15,6 +15,8 @@ pub const TablegenOutputFolder = enum {
     driver,
     openmp,
     codegen,
+    ir,
+    checkers,
 
     pub fn toRelativePath(self: @This()) []const u8 {
         return switch (self) {
@@ -24,6 +26,8 @@ pub const TablegenOutputFolder = enum {
             .driver => "clang/Driver",
             .openmp => "llvm/Frontend/OpenMP",
             .codegen => "llvm/CodeGen",
+            .ir => "llvm/IR",
+            .checkers => "clang/StaticAnalyzer/Checkers",
         };
     }
 };
@@ -31,9 +35,17 @@ pub const TablegenOutputFolder = enum {
 pub const ClangTablegenDescription = struct {
     td_file: LazyPath,
     targets: []const ClangTablegenTarget,
+    td_includes: []const LazyPath,
 };
 
 pub fn getClangTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []const ClangTablegenDescription {
+    const includes = b.allocator.create([3]LazyPath) catch @panic("OOM");
+    includes.* = [_]LazyPath{
+        root.path(b, "clang/include/"),
+        root.path(b, "clang/include/clang/Basic"),
+        root.path(b, "clang/include/clang/StaticAnalyzer/Checkers"),
+    };
+
     const initial_diag_target_list = &.{
         ClangTablegenTarget{
             .output_basename = "DiagnosticGroups.inc",
@@ -150,210 +162,268 @@ pub fn getClangTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []c
     const comment_command_list_targets = &[_]ClangTablegenTarget{.{ .output_basename = "CommentCommandList.inc", .flags = &.{"-gen-clang-comment-command-list"}, .folder = .ast }};
     const stmt_data_collectors_targets = &[_]ClangTablegenTarget{.{ .output_basename = "StmtDataCollectors.inc", .flags = &.{"-gen-clang-data-collectors"}, .folder = .ast }};
 
+    const checkers_targets = &[_]ClangTablegenTarget{.{ .output_basename = "Checkers.inc", .flags = &.{"-gen-clang-sa-checkers"}, .folder = .checkers }};
+
     const descs = [_]ClangTablegenDescription{
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/Attr.td"),
             .targets = attr_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/Diagnostic.td"),
             .targets = diag_target_list.toOwnedSlice() catch @panic("OOM"),
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/DeclNodes.td"),
             .targets = declnode_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/Builtins.td"),
             .targets = builtins_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/BuiltinsBPF.td"),
             .targets = builtins_bpf_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/BuiltinsHexagon.td"),
             .targets = builtins_hexagon_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/BuiltinsNVPTX.td"),
             .targets = builtins_nvptx_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/BuiltinsRISCV.td"),
             .targets = builtins_riscv_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/BuiltinsSPIRV.td"),
             .targets = builtins_spirv_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/BuiltinsX86.td"),
             .targets = builtins_x86_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/BuiltinsX86_64.td"),
             .targets = builtins_x86_64_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/StmtNodes.td"),
             .targets = stmt_nodes_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/arm_neon.td"),
             .targets = arm_neon_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/arm_fp16.td"),
             .targets = arm_fp16_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/arm_sve.td"),
             .targets = arm_immcheck_types_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/arm_mve.td"),
             .targets = arm_mve_builtins_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/arm_mve.td"),
             .targets = arm_mve_builtin_cg_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/arm_mve.td"),
             .targets = arm_mve_builtin_sema_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/arm_mve.td"),
             .targets = arm_mve_builtin_aliases_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/arm_sve.td"),
             .targets = arm_sve_builtins_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/arm_sve.td"),
             .targets = arm_sve_builtin_cg_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/arm_sve.td"),
             .targets = arm_sve_typeflags_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/arm_sve.td"),
             .targets = arm_sve_sema_rangechecks_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/arm_sve.td"),
             .targets = arm_sve_streaming_attrs_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/arm_sme.td"),
             .targets = arm_sme_builtins_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/arm_sme.td"),
             .targets = arm_sme_builtin_cg_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/arm_sme.td"),
             .targets = arm_sme_sema_rangechecks_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/arm_sme.td"),
             .targets = arm_sme_streaming_attrs_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/arm_sme.td"),
             .targets = arm_sme_builtins_za_state_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/arm_cde.td"),
             .targets = arm_cde_builtins_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/arm_cde.td"),
             .targets = arm_cde_builtin_cg_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/arm_cde.td"),
             .targets = arm_cde_builtin_sema_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/arm_cde.td"),
             .targets = arm_cde_builtin_aliases_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/riscv_vector.td"),
             .targets = riscv_vector_builtins_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/riscv_vector.td"),
             .targets = riscv_vector_builtin_cg_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/riscv_vector.td"),
             .targets = riscv_vector_builtin_sema_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/riscv_sifive_vector.td"),
             .targets = riscv_sifive_vector_builtins_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/riscv_sifive_vector.td"),
             .targets = riscv_sifive_vector_builtin_cg_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/riscv_sifive_vector.td"),
             .targets = riscv_sifive_vector_builtin_sema_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/TypeNodes.td"),
             .targets = type_nodes_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/AST/PropertiesBase.td"),
             .targets = abstract_basic_reader_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/AST/PropertiesBase.td"),
             .targets = abstract_basic_writer_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/AST/TypeProperties.td"),
             .targets = abstract_type_reader_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/AST/TypeProperties.td"),
             .targets = abstract_type_writer_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/Basic/CommentNodes.td"),
             .targets = comment_nodes_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/AST/CommentHTMLTags.td"),
             .targets = comment_html_tags_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/AST/CommentHTMLTags.td"),
             .targets = comment_html_tags_properties_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/AST/CommentHTMLNamedCharacterReferences.td"),
             .targets = comment_html_named_character_references_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/AST/CommentCommands.td"),
             .targets = comment_command_info_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/AST/CommentCommands.td"),
             .targets = comment_command_list_targets,
+            .td_includes = includes,
         },
         .{
             .td_file = root.path(b, "clang/include/clang/AST/StmtDataCollectors.td"),
             .targets = stmt_data_collectors_targets,
+            .td_includes = includes,
+        },
+        .{
+            .td_file = root.path(b, "clang/include/clang/StaticAnalyzer/Checkers/Checkers.td"),
+            .targets = checkers_targets,
+            .td_includes = includes,
         },
     };
 
@@ -363,6 +433,9 @@ pub fn getClangTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []c
 }
 
 pub fn getLLVMTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []const ClangTablegenDescription {
+    const includes = b.allocator.create([1]LazyPath) catch @panic("OOM");
+    includes.* = [_]LazyPath{root.path(b, "llvm/include")};
+
     // const options_targets = &[_]ClangTablegenTarget{.{ .output_basename = "Options.inc", .flags = &.{"-gen-opt-parser-defs"}, .folder = .driver }};
     const openmp_targets = &[_]ClangTablegenTarget{
         .{ .output_basename = "OMP.h.inc", .flags = &.{"--gen-directive-decl"}, .folder = .openmp },
@@ -377,6 +450,7 @@ pub fn getLLVMTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []co
         .{
             .td_file = root.path(b, "llvm/include/llvm/Frontend/OpenMP/OMP.td"),
             .targets = openmp_targets,
+            .td_includes = includes,
         },
     };
     const allocated = b.allocator.create(@TypeOf(descs)) catch @panic("OOM");
@@ -386,14 +460,55 @@ pub fn getLLVMTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []co
 
 /// Tablegen tasks that can be done with llvm-min-tblgen
 pub fn getLLVMMinTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []const ClangTablegenDescription {
+    const includes = b.allocator.create([1]LazyPath) catch @panic("OOM");
+    includes.* = [_]LazyPath{root.path(b, "llvm/include")};
+
     const codegen_targets = &[_]ClangTablegenTarget{
         .{ .output_basename = "GenVT.inc", .flags = &.{"-gen-vt"}, .folder = .codegen },
+    };
+
+    const attributes_targets = &[_]ClangTablegenTarget{
+        .{ .output_basename = "Attributes.inc", .flags = &.{"-gen-attrs"}, .folder = .ir },
+    };
+
+    const intrinsics_targets = &[_]ClangTablegenTarget{
+        .{ .output_basename = "IntrinsicImpl.inc", .flags = &.{"-gen-intrinsic-impl"}, .folder = .ir },
+        .{ .output_basename = "IntrinsicEnums.inc", .flags = &.{"-gen-intrinsic-enums"}, .folder = .ir },
+        .{ .output_basename = "IntrinsicsAArch64.h", .flags = &.{ "-gen-intrinsic-enums", "-intrinsic-prefix=aarch64" }, .folder = .ir },
+        .{ .output_basename = "IntrinsicsAMDGPU.h", .flags = &.{ "-gen-intrinsic-enums", "-intrinsic-prefix=amdgcn" }, .folder = .ir },
+        .{ .output_basename = "IntrinsicsARM.h", .flags = &.{ "-gen-intrinsic-enums", "-intrinsic-prefix=arm" }, .folder = .ir },
+        .{ .output_basename = "IntrinsicsBPF.h", .flags = &.{ "-gen-intrinsic-enums", "-intrinsic-prefix=bpf" }, .folder = .ir },
+        .{ .output_basename = "IntrinsicsDirectX.h", .flags = &.{ "-gen-intrinsic-enums", "-intrinsic-prefix=dx" }, .folder = .ir },
+        .{ .output_basename = "IntrinsicsHexagon.h", .flags = &.{ "-gen-intrinsic-enums", "-intrinsic-prefix=hexagon" }, .folder = .ir },
+        .{ .output_basename = "IntrinsicsLoongArch.h", .flags = &.{ "-gen-intrinsic-enums", "-intrinsic-prefix=loongarch" }, .folder = .ir },
+        .{ .output_basename = "IntrinsicsMips.h", .flags = &.{ "-gen-intrinsic-enums", "-intrinsic-prefix=mips" }, .folder = .ir },
+        .{ .output_basename = "IntrinsicsNVPTX.h", .flags = &.{ "-gen-intrinsic-enums", "-intrinsic-prefix=nvvm" }, .folder = .ir },
+        .{ .output_basename = "IntrinsicsPowerPC.h", .flags = &.{ "-gen-intrinsic-enums", "-intrinsic-prefix=ppc" }, .folder = .ir },
+        .{ .output_basename = "IntrinsicsR600.h", .flags = &.{ "-gen-intrinsic-enums", "-intrinsic-prefix=r600" }, .folder = .ir },
+        .{ .output_basename = "IntrinsicsRISCV.h", .flags = &.{ "-gen-intrinsic-enums", "-intrinsic-prefix=riscv" }, .folder = .ir },
+        .{ .output_basename = "IntrinsicsSPIRV.h", .flags = &.{ "-gen-intrinsic-enums", "-intrinsic-prefix=spv" }, .folder = .ir },
+        .{ .output_basename = "IntrinsicsS390.h", .flags = &.{ "-gen-intrinsic-enums", "-intrinsic-prefix=s390" }, .folder = .ir },
+        .{ .output_basename = "IntrinsicsWebAssembly.h", .flags = &.{ "-gen-intrinsic-enums", "-intrinsic-prefix=wasm" }, .folder = .ir },
+        .{ .output_basename = "IntrinsicsX86.h", .flags = &.{ "-gen-intrinsic-enums", "-intrinsic-prefix=x86" }, .folder = .ir },
+        .{ .output_basename = "IntrinsicsXCore.h", .flags = &.{ "-gen-intrinsic-enums", "-intrinsic-prefix=xcore" }, .folder = .ir },
+        .{ .output_basename = "IntrinsicsVE.h", .flags = &.{ "-gen-intrinsic-enums", "-intrinsic-prefix=ve" }, .folder = .ir },
     };
 
     const descs = [_]ClangTablegenDescription{
         .{
             .td_file = root.path(b, "llvm/include/llvm/CodeGen/ValueTypes.td"),
             .targets = codegen_targets,
+            .td_includes = includes,
+        },
+        .{
+            .td_file = root.path(b, "llvm/include/llvm/IR/Attributes.td"),
+            .targets = attributes_targets,
+            .td_includes = includes,
+        },
+        .{
+            .td_file = root.path(b, "llvm/include/llvm/IR/Intrinsics.td"),
+            .targets = intrinsics_targets,
+            .td_includes = includes,
         },
     };
     const allocated = b.allocator.create(@TypeOf(descs)) catch @panic("OOM");

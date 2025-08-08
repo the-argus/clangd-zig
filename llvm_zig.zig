@@ -264,8 +264,8 @@ pub fn build(ctx: *Context) void {
     ctx.targets.llvm_host_component_tablegen_lib.?.linkLibrary(ctx.targets.llvm_host_component_support_lib.?);
 
     // build llvm/utils/TableGen/Basic
-    ctx.targets.llvm_host_component_tblgen_basic_lib = ctx.addLLVMLibrary(.{
-        .name = "Basic",
+    ctx.targets.llvm_host_component_tblgen_basic_lib = ctx.addLLVMObject(.{
+        .name = "LLVMTableGenBasic",
         .root_module = ctx.makeHostModule(),
     });
     ctx.targets.llvm_host_component_tblgen_basic_lib.?.addCSourceFiles(.{
@@ -288,7 +288,7 @@ pub fn build(ctx: *Context) void {
         .files = sources.llvm_min_tablegen_cpp_files,
         .language = .cpp,
     });
-    ctx.targets.llvm_host_component_tblgen_min_exe.?.linkLibrary(ctx.targets.llvm_host_component_tblgen_basic_lib.?);
+    ctx.targets.llvm_host_component_tblgen_min_exe.?.addObject(ctx.targets.llvm_host_component_tblgen_basic_lib.?);
 
     const llvm_min_tablegenerated_incs = block: {
         const writefile_step = ctx.b.addWriteFiles();
@@ -297,6 +297,24 @@ pub fn build(ctx: *Context) void {
         }
         break :block writefile_step.getDirectory();
     };
+
+    // build llvm/utils/TableGen/Common
+    ctx.targets.llvm_host_component_tblgen_common_lib = ctx.addLLVMObject(.{
+        .name = "LLVMTableGenCommon",
+        .root_module = ctx.makeHostModule(),
+    });
+    ctx.targets.llvm_host_component_tblgen_common_lib.?.addCSourceFiles(.{
+        .root = ctx.paths.llvm.utils.tablegen.common.path,
+        .files = sources.llvm_tablegen_common_lib_cpp_files,
+        .flags = ctx.dupeGlobalFlags(),
+        .language = .cpp,
+    });
+    ctx.targets.llvm_host_component_tblgen_common_lib.?.addIncludePath(llvm_min_tablegenerated_incs);
+    // installHeadersDirectory is not recursive
+    ctx.targets.llvm_host_component_tblgen_common_lib.?.installHeadersDirectory(ctx.paths.llvm.utils.tablegen.common.path, "Common/", .{});
+    ctx.targets.llvm_host_component_tblgen_common_lib.?.installHeadersDirectory(ctx.paths.llvm.utils.tablegen.common.globalisel.path, "Common/GlobalISel/", .{});
+    // TODO: why is this necessary? installHeadersDirectory should add these folders to the include path, right?
+    ctx.targets.llvm_host_component_tblgen_common_lib.?.addIncludePath(ctx.paths.llvm.utils.tablegen.path);
 
     // link libLLVMTableGen lib into executable
     ctx.targets.llvm_host_component_tblgen_exe = ctx.addLLVMExecutable(.{
@@ -310,8 +328,8 @@ pub fn build(ctx: *Context) void {
         .language = .cpp,
     });
     ctx.targets.llvm_host_component_tblgen_exe.?.addIncludePath(llvm_min_tablegenerated_incs);
-    ctx.targets.llvm_host_component_tblgen_exe.?.linkLibrary(ctx.targets.llvm_host_component_support_lib.?);
-    ctx.targets.llvm_host_component_tblgen_exe.?.linkLibrary(ctx.targets.llvm_host_component_tablegen_lib.?);
+    ctx.targets.llvm_host_component_tblgen_exe.?.addObject(ctx.targets.llvm_host_component_tblgen_common_lib.?);
+    ctx.targets.llvm_host_component_tblgen_exe.?.addObject(ctx.targets.llvm_host_component_tblgen_basic_lib.?);
 
     {
         const writefile_step = ctx.b.addWriteFiles();
