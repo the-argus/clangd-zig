@@ -637,7 +637,7 @@ pub fn build(b: *std.Build) !void {
 
     // fill out the components of ctx.targets which begin with "llvm_"
     @import("llvm_zig.zig").build(ctx);
-    @import("clang_include_basic.zig").build(ctx);
+    @import("clang.zig").build(ctx);
 
     ctx.targets.clangd_lib = b.addLibrary(.{
         .name = "clangd_lib",
