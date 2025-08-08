@@ -80,37 +80,6 @@ pub fn build(ctx: *Context) void {
         .LLVM_NATIVE_TARGETINFO = llvmTargetToolString(ctx, "TargetInfo"),
         .LLVM_NATIVE_TARGETMC = llvmTargetToolString(ctx, "TargetMC"),
         .LLVM_NATIVE_TARGETMCA = llvmTargetToolString(ctx, "TargetMCA"),
-        // targets included in llvm_all_targets
-        // NOTE: this is just the default, all regular targets enabled. options
-        // to really customize this are not exposed in this build script yet
-        .LLVM_HAS_AARCH64_TARGET = true,
-        .LLVM_HAS_AMDGPU_TARGET = true,
-        .LLVM_HAS_ARM_TARGET = true,
-        .LLVM_HAS_AVR_TARGET = true,
-        .LLVM_HAS_BPF_TARGET = true,
-        .LLVM_HAS_HEXAGON_TARGET = true,
-        .LLVM_HAS_LANAI_TARGET = true,
-        .LLVM_HAS_LOONGARCH_TARGET = true,
-        .LLVM_HAS_MIPS_TARGET = true,
-        .LLVM_HAS_MSP430_TARGET = true,
-        .LLVM_HAS_NVPTX_TARGET = true,
-        .LLVM_HAS_POWERPC_TARGET = true,
-        .LLVM_HAS_RISCV_TARGET = true,
-        .LLVM_HAS_SPARC_TARGET = true,
-        .LLVM_HAS_SPIRV_TARGET = true,
-        .LLVM_HAS_SYSTEMZ_TARGET = true,
-        .LLVM_HAS_VE_TARGET = true,
-        .LLVM_HAS_WEBASSEMBLY_TARGET = true,
-        .LLVM_HAS_X86_TARGET = true,
-        .LLVM_HAS_XCORE_TARGET = true,
-
-        // experimental targets that aren't in llvm_all_targets
-        .LLVM_HAS_ARC_TARGET = false,
-        .LLVM_HAS_CSKY_TARGET = false,
-        .LLVM_HAS_DIRECTX_TARGET = false,
-        .LLVM_HAS_M68K_TARGET = false,
-        .LLVM_HAS_XTENSA_TARGET = false,
-
         .LLVM_ON_UNIX = Context.osIsUnixLike(builtin.os.tag),
         .LLVM_USE_INTEL_JITEVENTS = false,
         .LLVM_USE_OPROFILE = false,
@@ -134,6 +103,35 @@ pub fn build(ctx: *Context) void {
         .LLVM_ENABLE_PLUGINS = false,
         .LLVM_HAS_LOGF128 = false,
     });
+
+    // track all targets as a big string for Targets.def config header
+    var supported_targets = std.ArrayList(u8).init(ctx.b.allocator);
+    supported_targets.ensureTotalCapacity(1000) catch @panic("OOM");
+    var supported_targets_writer = supported_targets.writer();
+
+    // add defines to config header for every field in supported targets structs
+    inline for (@typeInfo(@import("build.zig").LLVMSupportedTargets).@"struct".fields) |field| {
+        inline for (@typeInfo(field.type).@"struct".fields) |target_supported_field| {
+            const field_name = std.fmt.comptimePrint("LLVM_HAS_{s}_TARGET", .{target_supported_field.name});
+            const is_supported = @field(@field(
+                ctx.opts.supported_targets,
+                field.name,
+            ), target_supported_field.name);
+            ctx.targets.llvm_public_config_header.?.addValue(field_name, bool, is_supported);
+
+            if (is_supported) {
+                supported_targets_writer.print("LLVM_TARGET({s})\n", .{target_supported_field.name}) catch @panic("OOM, or format error");
+            }
+        }
+    }
+
+    ctx.targets.llvm_targets_def_config_header = ctx.b.addConfigHeader(
+        ctx.paths.llvm.include.llvm.config.llvm_targets_def_config_header.makeOptions(),
+        .{
+            .LLVM_ENUM_TARGETS = supported_targets.toOwnedSlice() catch @panic("OOM"),
+        },
+    );
+
     const private_opts = ctx.paths.llvm.include.llvm.config.llvm_private_config_header.makeOptions();
     const target = ctx.module_opts.target.?.result;
     ctx.targets.llvm_private_config_header = ctx.b.addConfigHeader(private_opts, .{

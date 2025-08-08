@@ -28,6 +28,8 @@ pub const Options = struct {
     clangd_decision_forest: bool,
     clangd_enable_remote: bool,
     clangd_build_xpc: bool,
+
+    supported_targets: LLVMSupportedTargets,
 };
 
 pub const ConfigHeader = struct {
@@ -119,6 +121,7 @@ pub const Paths = struct {
                     llvm_private_config_header: ConfigHeader,
                     llvm_public_config_header: ConfigHeader,
                     llvm_abi_breaking_config_header: ConfigHeader,
+                    llvm_targets_def_config_header: ConfigHeader,
                 },
                 frontend: struct {
                     path: LazyPath,
@@ -231,6 +234,10 @@ pub const Paths = struct {
                                 .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/abi-breaking.h.cmake"),
                                 .output_include_path = "llvm/Config/abi-breaking.h",
                             },
+                            .llvm_targets_def_config_header = ConfigHeader{
+                                .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/Targets.def.in"),
+                                .output_include_path = "llvm/Config/Targets.def",
+                            },
                         },
                         .frontend = .{
                             .path = root.path(b, "llvm/include/llvm/Frontend"),
@@ -302,6 +309,7 @@ pub const Targets = struct {
     // llvm/include/llvm/Config/abi-breaking.h.cmake
     llvm_abi_breaking_config_header: ?*std.Build.Step.ConfigHeader = null,
     llvm_features_inc_config_header: ?*std.Build.Step.ConfigHeader = null,
+    llvm_targets_def_config_header: ?*std.Build.Step.ConfigHeader = null,
 
     llvm_host_component_demangle_lib: ?*Compile = null,
     llvm_host_component_support_lib: ?*Compile = null,
@@ -371,6 +379,7 @@ pub const Context = struct {
         c.addConfigHeader(ctx.targets.llvm_private_config_header.?);
         c.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
         c.addConfigHeader(ctx.targets.llvm_features_inc_config_header.?);
+        c.addConfigHeader(ctx.targets.llvm_targets_def_config_header.?);
         c.linkLibCpp();
         return c;
     }
@@ -539,24 +548,48 @@ pub const Context = struct {
     }
 };
 
-// this function is the equivalent of clang_target_link_libraries in
-// AddClang.cmake in the llvm source code. right now it just links the libraries
-// but in the future could be used to link the llvm-driver.
-fn clangTargetLinkLibraries(target: *Compile, libs: []*Compile) void {
-    for (libs) |lib| {
-        target.linkLibrary(lib);
-    }
-}
+pub const LLVMSupportedTargets = struct {
+    all: LLVMALLTargets,
+    experimental: LLVMExperimentalTargets,
+};
 
-// this function is the equivalent of add_clang_tool in the AddClang.cmake file
-// of the llvm source code. It
-fn addClangTool(ctx: *Context, name: []const u8) *Compile {
-    const out = ctx.b.addExecutable(.{
-        .name = name,
-        .root_module = ctx.makeModule(),
-    });
-    ctx.b.installArtifact(out);
-    return out;
+pub const LLVMALLTargets = struct {
+    AARCH64: bool = true,
+    AMDGPU: bool = true,
+    ARM: bool = true,
+    AVR: bool = true,
+    BPF: bool = true,
+    HEXAGON: bool = true,
+    LANAI: bool = true,
+    LOONGARCH: bool = true,
+    MIPS: bool = true,
+    MSP430: bool = true,
+    NVPTX: bool = true,
+    POWERPC: bool = true,
+    RISCV: bool = true,
+    SPARC: bool = true,
+    SPIRV: bool = true,
+    SYSTEMZ: bool = true,
+    VE: bool = true,
+    WEBASSEMBLY: bool = true,
+    X86: bool = true,
+    XCORE: bool = true,
+};
+
+pub const LLVMExperimentalTargets = struct {
+    ARC: bool = false,
+    CSKY: bool = false,
+    DIRECTX: bool = false,
+    M68K: bool = false,
+    XTENSA: bool = false,
+};
+
+fn asciiToLower(comptime size: u64, str: [size]u8) [size]u8 {
+    var copy = str;
+    for (copy, 0..) |c, i| {
+        copy[i] = std.ascii.toLower(c);
+    }
+    return copy;
 }
 
 pub fn build(b: *std.Build) !void {
@@ -634,6 +667,30 @@ pub fn build(b: *std.Build) !void {
         "Use zlib for compression/decompression. (default: true)",
     ) orelse true;
 
+    var supported_targets = LLVMSupportedTargets{
+        .all = .{},
+        .experimental = .{},
+    };
+
+    // go through all the fields and fill them out by creating options for them
+    inline for (@typeInfo(LLVMSupportedTargets).@"struct".fields) |field| {
+        inline for (@typeInfo(field.type).@"struct".fields) |target_option_field| {
+            // jumping through hoops here to do compile time toLower...
+            var array_fieldname: [target_option_field.name.len]u8 = undefined;
+            std.mem.copyForwards(u8, &array_fieldname, target_option_field.name);
+            array_fieldname = asciiToLower(array_fieldname.len, array_fieldname);
+
+            @field(@field(supported_targets, field.name), target_option_field.name) = b.option(
+                bool,
+                b.fmt("support_{s}", .{&array_fieldname}),
+                std.fmt.comptimePrint(
+                    "Whether this build of LLVM should support generating code for the {s} platform. (default: {})",
+                    .{ target_option_field.name, target_option_field.defaultValue().? },
+                ),
+            ) orelse target_option_field.defaultValue().?;
+        }
+    }
+
     const llvm_project = b.dependency("llvm_project", .{});
 
     // dummy dependency which is used when determining what lazy dependencies to
@@ -658,6 +715,7 @@ pub fn build(b: *std.Build) !void {
         .clangd_tidy_checks = clangd_tidy_checks,
         .clangd_enable_remote = clangd_enable_remote,
         .clangd_decision_forest = clangd_decision_forest,
+        .supported_targets = supported_targets,
     });
 
     if (ctx.opts.llvm_enable_zlib) {
@@ -735,7 +793,11 @@ pub fn build(b: *std.Build) !void {
     ctx.targets.clangd_main_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
     ctx.targets.clangd_main_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
 
-    ctx.targets.clangd_exe = addClangTool(ctx, "clangd");
+    ctx.targets.clangd_exe = b.addExecutable(.{
+        .name = "clangd",
+        .root_module = ctx.makeModule(),
+    });
+    ctx.b.installArtifact(ctx.targets.clangd_exe.?);
     ctx.targets.clangd_exe.?.linkLibrary(ctx.targets.clangd_lib.?);
     ctx.targets.clangd_exe.?.linkLibrary(ctx.targets.clangd_main_lib.?);
 }
