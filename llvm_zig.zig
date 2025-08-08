@@ -275,6 +275,7 @@ pub fn build(ctx: *Context) void {
         .language = .cpp,
     });
     ctx.targets.llvm_host_component_tblgen_basic_lib.?.linkLibrary(ctx.targets.llvm_host_component_tablegen_lib.?);
+    ctx.targets.llvm_host_component_tblgen_basic_lib.?.installHeadersDirectory(ctx.paths.llvm.utils.tablegen.basic.path, "Basic/", .{});
 
     // create llvm-min-tablgen to bootstrap regular llvm tablegen
     ctx.targets.llvm_host_component_tblgen_min_exe = ctx.addLLVMExecutable(.{
