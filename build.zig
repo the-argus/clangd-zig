@@ -85,6 +85,10 @@ pub const Paths = struct {
             tool: struct { path: LazyPath },
         },
 
+        clang_tidy: struct {
+            clang_tidy_config_config_header: ConfigHeader,
+        },
+
         include_cleaner: struct {
             include: struct {
                 path: LazyPath,
@@ -194,6 +198,15 @@ pub const Paths = struct {
                 .include_cleaner = .{
                     .include = .{
                         .path = root.path(b, cte ++ "include-cleaner/include"),
+                    },
+                },
+                .clang_tidy = .{
+                    .clang_tidy_config_config_header = ConfigHeader{
+                        .output_include_path = "clang-tidy-config.h",
+                        .unconfigured_header_path = root.path(
+                            b,
+                            cte ++ "clang-tidy/clang-tidy-config.h.cmake",
+                        ),
                     },
                 },
             },
@@ -324,6 +337,9 @@ pub const Targets = struct {
 
     clang_tablegenerated_incs: ?LazyPath = null,
     llvm_tablegenerated_incs: ?LazyPath = null,
+
+    // cte short for clang_tools_extra
+    cte_clang_tidy_config_config_header: ?*std.Build.Step.ConfigHeader = null,
 };
 
 pub const Context = struct {
@@ -599,8 +615,8 @@ pub fn build(b: *std.Build) !void {
     const clangd_malloc_trim = b.option(
         bool,
         "clangd_malloc_trim",
-        "Call malloc_trim(3) periodically in clangd. (default: true)",
-    ) orelse true;
+        "Call malloc_trim(3) periodically in clangd. Only takes effect when using glibc. (default: true if using glibc, false otherwise)",
+    ) orelse target.result.isGnuLibC();
     const clangd_tidy_checks = b.option(
         bool,
         "clangd_tidy_checks",
@@ -609,8 +625,11 @@ pub fn build(b: *std.Build) !void {
     const clangd_decision_forest = b.option(
         bool,
         "clangd_decision_forest",
-        "Enable decision forest model for ranking code completion items. (default: true)",
-    ) orelse true;
+        "Enable decision forest model for ranking code completion items. Requires python (default: false)",
+    ) orelse false;
+    if (clangd_decision_forest) {
+        @panic("clangd_decision_forest not currently implemented as it introduces a system dependency on python for generating headers.");
+    }
     const clangd_enable_remote = b.option(
         bool,
         "clangd_enable_remote",
@@ -727,6 +746,15 @@ pub fn build(b: *std.Build) !void {
     @import("llvm_zig.zig").build(ctx);
     @import("clang.zig").build(ctx);
 
+    // clang tools extra stuff
+
+    {
+        const opts = ctx.paths.clang_tools_extra.clang_tidy.clang_tidy_config_config_header.makeOptions();
+        ctx.targets.cte_clang_tidy_config_config_header = ctx.b.addConfigHeader(opts, .{
+            .CLANG_TIDY_ENABLE_STATIC_ANALYZER = true,
+        });
+    }
+
     ctx.targets.clangd_lib = ctx.addClangLibrary(.{
         .name = "clangd_lib",
         .linkage = .static,
@@ -738,6 +766,7 @@ pub fn build(b: *std.Build) !void {
     ctx.targets.clangd_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
     ctx.targets.clangd_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
     // TODO: configure and install clang-tidy headers, add the build dir as include path
+    ctx.targets.clangd_lib.?.addConfigHeader(ctx.targets.cte_clang_tidy_config_config_header.?);
 
     ctx.targets.clangd_lib.?.addCSourceFiles(.{
         .root = ctx.paths.clang_tools_extra.clangd.path,
@@ -775,8 +804,6 @@ pub fn build(b: *std.Build) !void {
     // TODO: include generated COMPLETIONMODEL headers and necessary sources
     // ctx.targets.clangd_lib.?.addIncludePath(...);
 
-    // tool subdir where we build clangd executable ----------------------------
-
     ctx.targets.clangd_main_lib = ctx.addClangLibrary(.{
         .name = "clangd_main_lib",
         .linkage = .static,
@@ -792,10 +819,17 @@ pub fn build(b: *std.Build) !void {
     ctx.targets.clangd_main_lib.?.addIncludePath(ctx.paths.clang_tools_extra.include_cleaner.include.path);
     ctx.targets.clangd_main_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
     ctx.targets.clangd_main_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+    ctx.targets.clangd_main_lib.?.addConfigHeader(ctx.targets.cte_clang_tidy_config_config_header.?);
 
     ctx.targets.clangd_exe = b.addExecutable(.{
         .name = "clangd",
         .root_module = ctx.makeModule(),
+    });
+    ctx.targets.clangd_exe.?.addCSourceFiles(.{
+        .root = ctx.paths.clang_tools_extra.clangd.tool.path,
+        .files = sources.tool_cpp_files,
+        .flags = ctx.dupeGlobalFlags(),
+        .language = .cpp,
     });
     ctx.b.installArtifact(ctx.targets.clangd_exe.?);
     ctx.targets.clangd_exe.?.linkLibrary(ctx.targets.clangd_lib.?);
