@@ -6,7 +6,7 @@ const sources = @import("clangd_sources.zig");
 /// Fills out all the fields in Context.targets that start with clang_*
 /// Called from root build.zig
 pub fn build(ctx: *Context) void {
-    ctx.targets.clang_host_component_support_lib = ctx.b.addLibrary(.{
+    ctx.targets.clang_host_component_support_lib = ctx.addClangLibrary(.{
         .name = "clangSupport",
         .root_module = ctx.makeHostModule(),
     });
@@ -16,15 +16,10 @@ pub fn build(ctx: *Context) void {
         .flags = ctx.dupeGlobalFlags(),
         .language = .cpp,
     });
-    ctx.targets.clang_host_component_support_lib.?.linkLibCpp();
-    ctx.targets.clang_host_component_support_lib.?.addIncludePath(ctx.paths.clang.include.path);
-    ctx.targets.clang_host_component_support_lib.?.addIncludePath(ctx.paths.llvm.include.path);
-    ctx.targets.clang_host_component_support_lib.?.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
-    ctx.targets.clang_host_component_support_lib.?.addConfigHeader(ctx.targets.llvm_public_config_header.?);
     // clang support also has llvm support and tablegen lib
     ctx.targets.clang_host_component_support_lib.?.linkLibrary(ctx.targets.llvm_host_component_tablegen_lib.?);
 
-    ctx.targets.clang_host_component_tblgen_exe = ctx.b.addExecutable(.{
+    ctx.targets.clang_host_component_tblgen_exe = ctx.addClangExecutable(.{
         .name = "clang-tblgen",
         .root_module = ctx.makeHostModule(),
     });
@@ -34,11 +29,6 @@ pub fn build(ctx: *Context) void {
         .flags = ctx.dupeGlobalFlags(),
         .language = .cpp,
     });
-    ctx.targets.clang_host_component_tblgen_exe.?.linkLibCpp();
-    ctx.targets.clang_host_component_tblgen_exe.?.addIncludePath(ctx.paths.clang.include.path);
-    ctx.targets.clang_host_component_tblgen_exe.?.addIncludePath(ctx.paths.llvm.include.path);
-    ctx.targets.clang_host_component_tblgen_exe.?.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
-    ctx.targets.clang_host_component_tblgen_exe.?.addConfigHeader(ctx.targets.llvm_public_config_header.?);
     ctx.targets.clang_host_component_tblgen_exe.?.linkLibrary(ctx.targets.clang_host_component_support_lib.?);
 
     const writefile_step = ctx.b.addWriteFiles();

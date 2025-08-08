@@ -6,7 +6,7 @@ const std = @import("std");
 const Context = @import("build.zig").Context;
 
 pub fn build(ctx: *Context) void {
-    ctx.targets.llvm_host_component_support_lib = ctx.b.addLibrary(.{
+    ctx.targets.llvm_host_component_support_lib = ctx.addLLVMLibrary(.{
         .name = "support",
         .root_module = ctx.makeHostModule(),
         .linkage = .static,
@@ -61,14 +61,10 @@ pub fn build(ctx: *Context) void {
         .root = ctx.paths.llvm.lib.support.path,
         .flags = flags.toOwnedSlice() catch @panic("OOM"),
     });
-    ctx.targets.llvm_host_component_support_lib.?.addIncludePath(ctx.paths.llvm.include.path);
     ctx.targets.llvm_host_component_support_lib.?.addIncludePath(ctx.paths.llvm.include.llvm.support.path);
     ctx.targets.llvm_host_component_support_lib.?.addIncludePath(ctx.paths.llvm.include.llvm.adt.path);
     ctx.targets.llvm_host_component_support_lib.?.addIncludePath(ctx.paths.llvm.lib.support.windows.path);
     ctx.targets.llvm_host_component_support_lib.?.addIncludePath(ctx.paths.llvm.lib.support.unix.path);
-    ctx.targets.llvm_host_component_support_lib.?.addConfigHeader(ctx.targets.llvm_public_config_header.?);
-    ctx.targets.llvm_host_component_support_lib.?.addConfigHeader(ctx.targets.llvm_private_config_header.?);
-    ctx.targets.llvm_host_component_support_lib.?.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
     ctx.targets.llvm_host_component_support_lib.?.linkLibrary(ctx.targets.llvm_host_component_demangle_lib.?);
 
     if (ctx.targets.zlib) |zlib| {

@@ -352,6 +352,38 @@ pub const Context = struct {
         return out;
     }
 
+    pub fn addLLVMLibrary(ctx: *@This(), options: std.Build.LibraryOptions) *Compile {
+        const lib = ctx.b.addLibrary(options);
+        lib.addIncludePath(ctx.paths.llvm.include.path);
+        lib.addConfigHeader(ctx.targets.llvm_public_config_header.?);
+        lib.addConfigHeader(ctx.targets.llvm_private_config_header.?);
+        lib.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
+        lib.linkLibCpp();
+        return lib;
+    }
+
+    pub fn addLLVMExecutable(ctx: *@This(), options: std.Build.ExecutableOptions) *Compile {
+        const exe = ctx.b.addExecutable(options);
+        exe.addIncludePath(ctx.paths.llvm.include.path);
+        exe.addConfigHeader(ctx.targets.llvm_public_config_header.?);
+        exe.addConfigHeader(ctx.targets.llvm_private_config_header.?);
+        exe.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
+        exe.linkLibCpp();
+        return exe;
+    }
+
+    pub fn addClangLibrary(ctx: *@This(), options: std.Build.LibraryOptions) *Compile {
+        const lib = ctx.addLLVMLibrary(options);
+        lib.addIncludePath(ctx.paths.clang.include.path);
+        return lib;
+    }
+
+    pub fn addClangExecutable(ctx: *@This(), options: std.Build.ExecutableOptions) *Compile {
+        const exe = ctx.addLLVMExecutable(options);
+        exe.addIncludePath(ctx.paths.clang.include.path);
+        return exe;
+    }
+
     fn tablegen(
         ctx: @This(),
         executable: *Compile,
