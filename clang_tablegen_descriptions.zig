@@ -17,6 +17,7 @@ pub const TablegenOutputFolder = enum {
     codegen,
     ir,
     checkers,
+    syntax,
 
     pub fn toRelativePath(self: @This()) []const u8 {
         return switch (self) {
@@ -28,6 +29,7 @@ pub const TablegenOutputFolder = enum {
             .codegen => "llvm/CodeGen",
             .ir => "llvm/IR",
             .checkers => "clang/StaticAnalyzer/Checkers",
+            .syntax => "clang/Tooling/Syntax",
         };
     }
 };
@@ -163,6 +165,10 @@ pub fn getClangTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []c
     const stmt_data_collectors_targets = &[_]ClangTablegenTarget{.{ .output_basename = "StmtDataCollectors.inc", .flags = &.{"-gen-clang-data-collectors"}, .folder = .ast }};
 
     const checkers_targets = &[_]ClangTablegenTarget{.{ .output_basename = "Checkers.inc", .flags = &.{"-gen-clang-sa-checkers"}, .folder = .checkers }};
+    const syntax_nodes_targets = &[_]ClangTablegenTarget{
+        .{ .output_basename = "Nodes.inc", .flags = &.{"-gen-clang-syntax-node-list"}, .folder = .syntax },
+        .{ .output_basename = "NodeClasses.inc", .flags = &.{"-gen-clang-syntax-node-classes"}, .folder = .syntax },
+    };
 
     const descs = [_]ClangTablegenDescription{
         .{
@@ -425,6 +431,11 @@ pub fn getClangTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []c
             .targets = checkers_targets,
             .td_includes = includes,
         },
+        .{
+            .td_file = root.path(b, "clang/include/clang/Tooling/Syntax/Nodes.td"),
+            .targets = syntax_nodes_targets,
+            .td_includes = includes,
+        },
     };
 
     const allocated = b.allocator.create(@TypeOf(descs)) catch @panic("OOM");
@@ -436,20 +447,21 @@ pub fn getLLVMTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []co
     const includes = b.allocator.create([1]LazyPath) catch @panic("OOM");
     includes.* = [_]LazyPath{root.path(b, "llvm/include")};
 
-    // const options_targets = &[_]ClangTablegenTarget{.{ .output_basename = "Options.inc", .flags = &.{"-gen-opt-parser-defs"}, .folder = .driver }};
+    const options_targets = &[_]ClangTablegenTarget{.{ .output_basename = "Options.inc", .flags = &.{"-gen-opt-parser-defs"}, .folder = .driver }};
     const openmp_targets = &[_]ClangTablegenTarget{
         .{ .output_basename = "OMP.h.inc", .flags = &.{"--gen-directive-decl"}, .folder = .openmp },
         .{ .output_basename = "OMP.inc", .flags = &.{"--gen-directive-impl"}, .folder = .openmp },
     };
 
     const descs = [_]ClangTablegenDescription{
-        // .{
-        //     .td_file = root.path(b, "clang/include/clang/Driver/Options.td"),
-        //     .targets = options_targets,
-        // },
         .{
             .td_file = root.path(b, "llvm/include/llvm/Frontend/OpenMP/OMP.td"),
             .targets = openmp_targets,
+            .td_includes = includes,
+        },
+        .{
+            .td_file = root.path(b, "clang/include/clang/Driver/Options.td"),
+            .targets = options_targets,
             .td_includes = includes,
         },
     };

@@ -102,6 +102,7 @@ pub const Paths = struct {
             clang: struct {
                 basic: struct {
                     path: LazyPath,
+                    clang_basic_version_config_header: ConfigHeader,
                 },
             },
         },
@@ -224,6 +225,10 @@ pub const Paths = struct {
                     .clang = .{
                         .basic = .{
                             .path = root.path(b, "clang/include/clang/Basic"),
+                            .clang_basic_version_config_header = ConfigHeader{
+                                .output_include_path = "clang/Basic/Version.inc",
+                                .unconfigured_header_path = root.path(b, "clang/include/clang/Basic/Version.inc.in"),
+                            },
                         },
                     },
                 },
@@ -370,6 +375,7 @@ pub const Targets = struct {
 
     clang_host_component_tblgen_exe: ?*Compile = null,
     clang_host_component_support_lib: ?*Compile = null,
+    clang_basic_version_config_header: ?*std.Build.Step.ConfigHeader = null,
 
     clang_tablegenerated_incs: ?LazyPath = null,
     llvm_tablegenerated_incs: ?LazyPath = null,
@@ -444,6 +450,7 @@ pub const Context = struct {
 
     fn addClangIncludesAndLinks(ctx: @This(), c: *Compile) *Compile {
         addLLVMIncludesAndLinks(ctx, c).addIncludePath(ctx.paths.clang.include.path);
+        c.addConfigHeader(ctx.targets.clang_basic_version_config_header.?);
         return c;
     }
 

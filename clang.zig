@@ -1,11 +1,24 @@
 const std = @import("std");
 
-const Context = @import("build.zig").Context;
+const Build = @import("build.zig");
+const Context = Build.Context;
 const sources = @import("clangd_sources.zig");
 
 /// Fills out all the fields in Context.targets that start with clang_*
 /// Called from root build.zig
 pub fn build(ctx: *Context) void {
+    ctx.targets.clang_basic_version_config_header = ctx.b.addConfigHeader(
+        ctx.paths.clang.include.clang.basic.clang_basic_version_config_header.makeOptions(),
+        .{
+            .CLANG_VERSION = Build.version_string,
+            .CLANG_VERSION_MAJOR = @as(i64, Build.version.major),
+            .CLANG_VERSION_MINOR = @as(i64, Build.version.minor),
+            .CLANG_VERSION_PATCHLEVEL = @as(i64, Build.version.patch),
+            // from clang/CMakeLists.txt
+            .MAX_CLANG_ABI_COMPAT_VERSION = @as(i64, Build.version.major),
+        },
+    );
+
     ctx.targets.clang_host_component_support_lib = ctx.addClangLibrary(.{
         .name = "clangSupport",
         .root_module = ctx.makeHostModule(),
