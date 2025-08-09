@@ -18,6 +18,7 @@ pub const TablegenOutputFolder = enum {
     ir,
     checkers,
     syntax,
+    none,
 
     pub fn toRelativePath(self: @This()) []const u8 {
         return switch (self) {
@@ -30,6 +31,7 @@ pub const TablegenOutputFolder = enum {
             .ir => "llvm/IR",
             .checkers => "clang/StaticAnalyzer/Checkers",
             .syntax => "clang/Tooling/Syntax",
+            .none => "",
         };
     }
 };
@@ -107,6 +109,7 @@ pub fn getClangTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []c
         .{ .output_basename = "AttrTextNodeDump.inc", .flags = &.{"-gen-clang-attr-text-node-dump"}, .folder = .ast },
         .{ .output_basename = "AttrNodeTraverse.inc", .flags = &.{"-gen-clang-attr-node-traverse"}, .folder = .ast },
         .{ .output_basename = "AttrVisitor.inc", .flags = &.{"-gen-clang-attr-ast-visitor"}, .folder = .ast },
+        .{ .output_basename = "AttrDocTable.inc", .flags = &.{"-gen-clang-attr-doc-table"}, .folder = .checkers },
     };
     const declnode_targets = &[_]ClangTablegenTarget{
         .{ .output_basename = "DeclNodes.inc", .flags = &.{"-gen-clang-decl-nodes"} },
@@ -169,6 +172,8 @@ pub fn getClangTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []c
         .{ .output_basename = "Nodes.inc", .flags = &.{"-gen-clang-syntax-node-list"}, .folder = .syntax },
         .{ .output_basename = "NodeClasses.inc", .flags = &.{"-gen-clang-syntax-node-classes"}, .folder = .syntax },
     };
+
+    const opcodes_targets = &[_]ClangTablegenTarget{.{ .output_basename = "Opcodes.inc", .flags = &.{"-gen-clang-opcodes"}, .folder = .none }};
 
     const descs = [_]ClangTablegenDescription{
         .{
@@ -434,6 +439,11 @@ pub fn getClangTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []c
         .{
             .td_file = root.path(b, "clang/include/clang/Tooling/Syntax/Nodes.td"),
             .targets = syntax_nodes_targets,
+            .td_includes = includes,
+        },
+        .{
+            .td_file = root.path(b, "clang/lib/AST/ByteCode/Opcodes.td"),
+            .targets = opcodes_targets,
             .td_includes = includes,
         },
     };

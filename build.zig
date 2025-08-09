@@ -110,6 +110,57 @@ pub const Paths = struct {
             support: struct {
                 path: LazyPath,
             },
+            ast: struct {
+                path: LazyPath,
+            },
+            ast_matchers: struct {
+                path: LazyPath,
+            },
+            basic: struct {
+                path: LazyPath,
+            },
+            driver: struct {
+                path: LazyPath,
+            },
+            format: struct {
+                path: LazyPath,
+            },
+            frontend: struct {
+                path: LazyPath,
+            },
+            index: struct {
+                path: LazyPath,
+            },
+            rewrite: struct {
+                path: LazyPath,
+            },
+            lex: struct {
+                path: LazyPath,
+            },
+            sema: struct {
+                path: LazyPath,
+            },
+            serialization: struct {
+                path: LazyPath,
+            },
+            tooling: struct {
+                path: LazyPath,
+                dependency_scanning: struct {
+                    path: LazyPath,
+                },
+                inclusions: struct {
+                    path: LazyPath,
+                    stdlib: struct {
+                        path: LazyPath,
+                    },
+                },
+                syntax: struct {
+                    path: LazyPath,
+                },
+                core: struct {
+                    path: LazyPath,
+                },
+            },
         },
         utils: struct {
             tablegen: struct {
@@ -235,6 +286,57 @@ pub const Paths = struct {
                 .lib = .{
                     .support = .{
                         .path = root.path(b, "clang/lib/Support"),
+                    },
+                    .ast = .{
+                        .path = root.path(b, "clang/lib/AST"),
+                    },
+                    .ast_matchers = .{
+                        .path = root.path(b, "clang/lib/ASTMatchers"),
+                    },
+                    .basic = .{
+                        .path = root.path(b, "clang/lib/Basic"),
+                    },
+                    .driver = .{
+                        .path = root.path(b, "clang/lib/Driver"),
+                    },
+                    .format = .{
+                        .path = root.path(b, "clang/lib/Format"),
+                    },
+                    .frontend = .{
+                        .path = root.path(b, "clang/lib/Frontend"),
+                    },
+                    .index = .{
+                        .path = root.path(b, "clang/lib/Index"),
+                    },
+                    .rewrite = .{
+                        .path = root.path(b, "clang/lib/Rewrite"),
+                    },
+                    .lex = .{
+                        .path = root.path(b, "clang/lib/Lex"),
+                    },
+                    .sema = .{
+                        .path = root.path(b, "clang/lib/Sema"),
+                    },
+                    .serialization = .{
+                        .path = root.path(b, "clang/lib/Serialization"),
+                    },
+                    .tooling = .{
+                        .path = root.path(b, "clang/lib/Tooling"),
+                        .dependency_scanning = .{
+                            .path = root.path(b, "clang/lib/Tooling/DependencyScanning"),
+                        },
+                        .inclusions = .{
+                            .path = root.path(b, "clang/lib/Tooling/Inclusions"),
+                            .stdlib = .{
+                                .path = root.path(b, "clang/lib/Tooling/Inclusions/Stdlib"),
+                            },
+                        },
+                        .syntax = .{
+                            .path = root.path(b, "clang/lib/Tooling/Syntax"),
+                        },
+                        .core = .{
+                            .path = root.path(b, "clang/lib/Tooling/Core"),
+                        },
                     },
                 },
                 .utils = .{
@@ -375,6 +477,23 @@ pub const Targets = struct {
 
     clang_host_component_tblgen_exe: ?*Compile = null,
     clang_host_component_support_lib: ?*Compile = null,
+    clang_ast_lib: ?*Compile = null,
+    clang_ast_matchers_lib: ?*Compile = null,
+    clang_basic_lib: ?*Compile = null,
+    clang_driver_lib: ?*Compile = null,
+    clang_format_lib: ?*Compile = null,
+    clang_frontend_lib: ?*Compile = null,
+    clang_index_lib: ?*Compile = null,
+    clang_lex_lib: ?*Compile = null,
+    clang_sema_lib: ?*Compile = null,
+    clang_serialization_lib: ?*Compile = null,
+    clang_tooling_lib: ?*Compile = null,
+    clang_tooling_core_lib: ?*Compile = null,
+    clang_tooling_syntax_lib: ?*Compile = null,
+    clang_tooling_inclusions_lib: ?*Compile = null,
+    clang_tooling_inclusions_stdlib_lib: ?*Compile = null,
+    clang_tooling_dependency_scanning_lib: ?*Compile = null,
+    clang_rewrite_lib: ?*Compile = null,
     clang_basic_version_config_header: ?*std.Build.Step.ConfigHeader = null,
 
     clang_tablegenerated_incs: ?LazyPath = null,
@@ -824,21 +943,22 @@ pub fn build(b: *std.Build) !void {
         .language = .cpp,
     });
 
+    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_ast_lib.?);
+    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_ast_matchers_lib.?);
+    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
+    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_format_lib.?);
+    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_lex_lib.?);
+    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_tooling_core_lib.?);
+    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_tooling_inclusions_lib.?);
+
     // libs to build and link
-    // clangAST
-    // clangASTMatchers
-    // clangBasic
     // clangDependencyScanning
     // clangDriver
-    // clangFormat
     // clangFrontend
     // clangIndex
-    // clangLex
     // clangSema
     // clangSerialization
     // clangTooling
-    // clangToolingCore
-    // clangToolingInclusions
     // clangToolingInclusionsStdlib
     // clangToolingSyntax
     //
