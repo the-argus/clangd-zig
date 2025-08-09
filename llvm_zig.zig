@@ -106,21 +106,55 @@ pub fn build(ctx: *Context) void {
 
     // track all targets as a big string for Targets.def config header
     var supported_targets = std.ArrayList(u8).init(ctx.b.allocator);
+    var enum_asm_printers = std.ArrayList(u8).init(ctx.b.allocator);
+    var enum_asm_parsers = std.ArrayList(u8).init(ctx.b.allocator);
+    var enum_disassemblers = std.ArrayList(u8).init(ctx.b.allocator);
+    var enum_exegesis = std.ArrayList(u8).init(ctx.b.allocator);
+    var enum_mcas = std.ArrayList(u8).init(ctx.b.allocator);
     supported_targets.ensureTotalCapacity(1000) catch @panic("OOM");
+    enum_asm_printers.ensureTotalCapacity(1000) catch @panic("OOM");
+    enum_asm_parsers.ensureTotalCapacity(1000) catch @panic("OOM");
+    enum_disassemblers.ensureTotalCapacity(1000) catch @panic("OOM");
+    enum_exegesis.ensureTotalCapacity(1000) catch @panic("OOM");
+    enum_mcas.ensureTotalCapacity(1000) catch @panic("OOM");
     var supported_targets_writer = supported_targets.writer();
+    var asm_printers_writer = enum_asm_printers.writer();
+    var asm_parsers_writer = enum_asm_parsers.writer();
+    var disassemblers_writer = enum_disassemblers.writer();
+    var exegesis_writer = enum_exegesis.writer();
+    var mcas_writer = enum_mcas.writer();
 
     // add defines to config header for every field in supported targets structs
     inline for (@typeInfo(@import("build.zig").LLVMSupportedTargets).@"struct".fields) |field| {
-        inline for (@typeInfo(field.type).@"struct".fields) |target_supported_field| {
-            const field_name = std.fmt.comptimePrint("LLVM_HAS_{s}_TARGET", .{target_supported_field.name});
+        inline for (@typeInfo(field.type).@"struct".fields) |target_field| {
+            const field_name = std.fmt.comptimePrint("LLVM_HAS_{s}_TARGET", .{target_field.name});
             const is_supported = @field(@field(
                 ctx.opts.supported_targets,
                 field.name,
-            ), target_supported_field.name);
+            ), target_field.name);
             ctx.targets.llvm_public_config_header.?.addValue(field_name, bool, is_supported);
 
             if (is_supported) {
-                supported_targets_writer.print("LLVM_TARGET({s})\n", .{target_supported_field.name}) catch @panic("OOM, or format error");
+                const Set = std.static_string_map.StaticStringMap(void);
+                supported_targets_writer.print("LLVM_TARGET({s})\n", .{target_field.name}) catch @panic("OOM, or format error");
+                // NOTE: in normal LLVM there is a check to make sure llvm/lib/Target/${targetname}/*AsmPrinter.cpp exists, but all targets currently have one so we just skip that
+                asm_printers_writer.print("LLVM_ASM_PRINTER({s})\n", .{target_field.name}) catch @panic("OOM, or format error");
+                if (!Set.initComptime(.{ .{"ARC"}, .{"DirectX"}, .{"NVPTX"}, .{"SPIRV"}, .{"XCore"} }).has(target_field.name)) {
+                    asm_parsers_writer.print("LLVM_ASM_PARSER({s})\n", .{target_field.name}) catch @panic("OOM, or format error");
+                }
+
+                if (!Set.initComptime(.{ .{"DirectX"}, .{"NVPTX"}, .{"SPIRV"} }).has(target_field.name)) {
+                    disassemblers_writer.print("LLVM_DISASSEMBLER({s})\n", .{target_field.name}) catch @panic("OOM, or format error");
+                }
+
+                // inclusion list instead of exclusion
+                if (Set.initComptime(.{ .{"AMDGPU"}, .{"RISCV"}, .{"X86"} }).has(target_field.name)) {
+                    mcas_writer.print("LLVM_TARGETMCA({s})\n", .{target_field.name}) catch @panic("OOM, or format error");
+                }
+
+                if (Set.initComptime(.{ .{"AArch64"}, .{"Mips"}, .{"PowerPC"}, .{"RISCV"}, .{"X86"} }).has(target_field.name)) {
+                    exegesis_writer.print("LLVM_EXEGESIS({s})\n", .{target_field.name}) catch @panic("OOM, or format error");
+                }
             }
         }
     }
@@ -129,6 +163,36 @@ pub fn build(ctx: *Context) void {
         ctx.paths.llvm.include.llvm.config.llvm_targets_def_config_header.makeOptions(),
         .{
             .LLVM_ENUM_TARGETS = supported_targets.toOwnedSlice() catch @panic("OOM"),
+        },
+    );
+    ctx.targets.llvm_asm_printers_def_config_header = ctx.b.addConfigHeader(
+        ctx.paths.llvm.include.llvm.config.llvm_asm_printers_def_config_header.makeOptions(),
+        .{
+            .LLVM_ENUM_ASM_PRINTERS = enum_asm_printers.toOwnedSlice() catch @panic("OOM"),
+        },
+    );
+    ctx.targets.llvm_asm_parsers_def_config_header = ctx.b.addConfigHeader(
+        ctx.paths.llvm.include.llvm.config.llvm_asm_parsers_def_config_header.makeOptions(),
+        .{
+            .LLVM_ENUM_ASM_PARSERS = enum_asm_parsers.toOwnedSlice() catch @panic("OOM"),
+        },
+    );
+    ctx.targets.llvm_disassemblers_def_config_header = ctx.b.addConfigHeader(
+        ctx.paths.llvm.include.llvm.config.llvm_disassemblers_def_config_header.makeOptions(),
+        .{
+            .LLVM_ENUM_DISASSEMBLERS = enum_disassemblers.toOwnedSlice() catch @panic("OOM"),
+        },
+    );
+    ctx.targets.llvm_target_exegesis_def_config_header = ctx.b.addConfigHeader(
+        ctx.paths.llvm.include.llvm.config.llvm_target_exegesis_def_config_header.makeOptions(),
+        .{
+            .LLVM_ENUM_EXEGESIS = enum_exegesis.toOwnedSlice() catch @panic("OOM"),
+        },
+    );
+    ctx.targets.llvm_target_mcas_def_config_header = ctx.b.addConfigHeader(
+        ctx.paths.llvm.include.llvm.config.llvm_target_mcas_def_config_header.makeOptions(),
+        .{
+            .LLVM_ENUM_TARGETMCAS = enum_mcas.toOwnedSlice() catch @panic("OOM"),
         },
     );
 

@@ -126,6 +126,11 @@ pub const Paths = struct {
                     llvm_public_config_header: ConfigHeader,
                     llvm_abi_breaking_config_header: ConfigHeader,
                     llvm_targets_def_config_header: ConfigHeader,
+                    llvm_asm_printers_def_config_header: ConfigHeader,
+                    llvm_asm_parsers_def_config_header: ConfigHeader,
+                    llvm_disassemblers_def_config_header: ConfigHeader,
+                    llvm_target_exegesis_def_config_header: ConfigHeader,
+                    llvm_target_mcas_def_config_header: ConfigHeader,
                 },
                 frontend: struct {
                     path: LazyPath,
@@ -147,6 +152,9 @@ pub const Paths = struct {
 
         lib: struct {
             path: LazyPath,
+            target: struct {
+                path: LazyPath,
+            },
             demangle: struct {
                 path: LazyPath,
             },
@@ -251,6 +259,26 @@ pub const Paths = struct {
                                 .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/Targets.def.in"),
                                 .output_include_path = "llvm/Config/Targets.def",
                             },
+                            .llvm_asm_printers_def_config_header = ConfigHeader{
+                                .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/AsmPrinters.def.in"),
+                                .output_include_path = "llvm/Config/AsmPrinters.def",
+                            },
+                            .llvm_asm_parsers_def_config_header = ConfigHeader{
+                                .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/AsmParsers.def.in"),
+                                .output_include_path = "llvm/Config/AsmParsers.def",
+                            },
+                            .llvm_disassemblers_def_config_header = ConfigHeader{
+                                .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/Disassemblers.def.in"),
+                                .output_include_path = "llvm/Config/Disassemblers.def",
+                            },
+                            .llvm_target_exegesis_def_config_header = ConfigHeader{
+                                .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/TargetExegesis.def.in"),
+                                .output_include_path = "llvm/Config/TargetExegesis.def",
+                            },
+                            .llvm_target_mcas_def_config_header = ConfigHeader{
+                                .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/TargetMCAs.def.in"),
+                                .output_include_path = "llvm/Config/TargetMCAs.def",
+                            },
                         },
                         .frontend = .{
                             .path = root.path(b, "llvm/include/llvm/Frontend"),
@@ -271,6 +299,9 @@ pub const Paths = struct {
                 },
                 .lib = .{
                     .path = root.path(b, "llvm/lib"),
+                    .target = .{
+                        .path = root.path(b, "llvm/lib/Target"),
+                    },
                     .demangle = .{
                         .path = root.path(b, "llvm/lib/Demangle"),
                     },
@@ -323,6 +354,11 @@ pub const Targets = struct {
     llvm_abi_breaking_config_header: ?*std.Build.Step.ConfigHeader = null,
     llvm_features_inc_config_header: ?*std.Build.Step.ConfigHeader = null,
     llvm_targets_def_config_header: ?*std.Build.Step.ConfigHeader = null,
+    llvm_asm_parsers_def_config_header: ?*std.Build.Step.ConfigHeader = null,
+    llvm_asm_printers_def_config_header: ?*std.Build.Step.ConfigHeader = null,
+    llvm_disassemblers_def_config_header: ?*std.Build.Step.ConfigHeader = null,
+    llvm_target_exegesis_def_config_header: ?*std.Build.Step.ConfigHeader = null,
+    llvm_target_mcas_def_config_header: ?*std.Build.Step.ConfigHeader = null,
 
     llvm_host_component_demangle_lib: ?*Compile = null,
     llvm_host_component_support_lib: ?*Compile = null,
@@ -377,6 +413,7 @@ pub const Context = struct {
             .global_flags = std.ArrayList([]const u8).initCapacity(b.allocator, 50) catch @panic("OOM"),
         };
 
+        // TODO: is abi gnu check the correct thing here, or should it check libc
         if (module_opts.target.?.result.abi.isGnu()) {
             out.global_flags.append("-D_GNU_SOURCE") catch @panic("OOM");
 
@@ -396,6 +433,11 @@ pub const Context = struct {
         c.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
         c.addConfigHeader(ctx.targets.llvm_features_inc_config_header.?);
         c.addConfigHeader(ctx.targets.llvm_targets_def_config_header.?);
+        c.addConfigHeader(ctx.targets.llvm_asm_parsers_def_config_header.?);
+        c.addConfigHeader(ctx.targets.llvm_disassemblers_def_config_header.?);
+        c.addConfigHeader(ctx.targets.llvm_asm_printers_def_config_header.?);
+        c.addConfigHeader(ctx.targets.llvm_target_exegesis_def_config_header.?);
+        c.addConfigHeader(ctx.targets.llvm_target_mcas_def_config_header.?);
         c.linkLibCpp();
         return c;
     }
@@ -570,34 +612,34 @@ pub const LLVMSupportedTargets = struct {
 };
 
 pub const LLVMALLTargets = struct {
-    AARCH64: bool = true,
+    AArch64: bool = true,
     AMDGPU: bool = true,
     ARM: bool = true,
     AVR: bool = true,
     BPF: bool = true,
-    HEXAGON: bool = true,
-    LANAI: bool = true,
-    LOONGARCH: bool = true,
-    MIPS: bool = true,
+    Hexagon: bool = true,
+    Lanai: bool = true,
+    LoongArch: bool = true,
+    Mips: bool = true,
     MSP430: bool = true,
     NVPTX: bool = true,
-    POWERPC: bool = true,
+    PowerPC: bool = true,
     RISCV: bool = true,
-    SPARC: bool = true,
+    Sparc: bool = true,
     SPIRV: bool = true,
-    SYSTEMZ: bool = true,
+    SystemZ: bool = true,
     VE: bool = true,
-    WEBASSEMBLY: bool = true,
+    WebAssembly: bool = true,
     X86: bool = true,
-    XCORE: bool = true,
+    XCore: bool = true,
 };
 
 pub const LLVMExperimentalTargets = struct {
     ARC: bool = false,
     CSKY: bool = false,
-    DIRECTX: bool = false,
-    M68K: bool = false,
-    XTENSA: bool = false,
+    DirectX: bool = false,
+    M68k: bool = false,
+    Xtensa: bool = false,
 };
 
 fn asciiToLower(comptime size: u64, str: [size]u8) [size]u8 {
