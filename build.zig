@@ -5,8 +5,8 @@ const zlib_builder = @import("zlib.zig");
 const sources = @import("clangd_sources.zig");
 const Compile = std.Build.Step.Compile;
 const LazyPath = std.Build.LazyPath;
-const clang_tablegen_descriptions = @import("clang_tablegen_descriptions.zig");
-const ClangTablegenDescription = clang_tablegen_descriptions.ClangTablegenDescription;
+const tblgen_descriptions = @import("tblgen_descriptions.zig");
+const ClangTablegenDescription = tblgen_descriptions.ClangTablegenDescription;
 pub const version = std.SemanticVersion{ .major = 20, .minor = 1, .patch = 8 };
 pub const version_string = "20.1.8";
 
@@ -412,9 +412,9 @@ pub const Context = struct {
             .targets = .{},
             .paths = Paths.new(b, llvm_source_root),
             .opts = allocated_opts,
-            .clang_tablegen_files = clang_tablegen_descriptions.getClangTablegenDescriptions(b, llvm_source_root),
-            .llvm_tablegen_files = clang_tablegen_descriptions.getLLVMTablegenDescriptions(b, llvm_source_root),
-            .llvm_min_tablegen_files = clang_tablegen_descriptions.getLLVMMinTablegenDescriptions(b, llvm_source_root),
+            .clang_tablegen_files = tblgen_descriptions.getClangTablegenDescriptions(b, llvm_source_root),
+            .llvm_tablegen_files = tblgen_descriptions.getLLVMTablegenDescriptions(b, llvm_source_root),
+            .llvm_min_tablegen_files = tblgen_descriptions.getLLVMMinTablegenDescriptions(b, llvm_source_root),
             .global_system_libraries = std.ArrayList([]const u8).initCapacity(b.allocator, 50) catch @panic("OOM"),
             .global_flags = std.ArrayList([]const u8).initCapacity(b.allocator, 50) catch @panic("OOM"),
         };
