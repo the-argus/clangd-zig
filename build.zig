@@ -152,6 +152,12 @@ pub const Paths = struct {
             support: struct {
                 path: LazyPath,
             },
+            api_notes: struct {
+                path: LazyPath,
+            },
+            analysis: struct {
+                path: LazyPath,
+            },
             ast: struct {
                 path: LazyPath,
             },
@@ -162,6 +168,9 @@ pub const Paths = struct {
                 path: LazyPath,
             },
             driver: struct {
+                path: LazyPath,
+            },
+            edit: struct {
                 path: LazyPath,
             },
             format: struct {
@@ -177,6 +186,9 @@ pub const Paths = struct {
                 path: LazyPath,
             },
             lex: struct {
+                path: LazyPath,
+            },
+            parse: struct {
                 path: LazyPath,
             },
             sema: struct {
@@ -335,6 +347,12 @@ pub const Paths = struct {
                     .support = .{
                         .path = root.path(b, "clang/lib/Support"),
                     },
+                    .api_notes = .{
+                        .path = root.path(b, "clang/lib/APINotes"),
+                    },
+                    .analysis = .{
+                        .path = root.path(b, "clang/lib/Analysis"),
+                    },
                     .ast = .{
                         .path = root.path(b, "clang/lib/AST"),
                     },
@@ -346,6 +364,9 @@ pub const Paths = struct {
                     },
                     .driver = .{
                         .path = root.path(b, "clang/lib/Driver"),
+                    },
+                    .edit = .{
+                        .path = root.path(b, "clang/lib/Edit"),
                     },
                     .format = .{
                         .path = root.path(b, "clang/lib/Format"),
@@ -361,6 +382,9 @@ pub const Paths = struct {
                     },
                     .lex = .{
                         .path = root.path(b, "clang/lib/Lex"),
+                    },
+                    .parse = .{
+                        .path = root.path(b, "clang/lib/Parse"),
                     },
                     .sema = .{
                         .path = root.path(b, "clang/lib/Sema"),
@@ -535,6 +559,11 @@ pub const Targets = struct {
     clang_lex_lib: ?*Compile = null,
     clang_sema_lib: ?*Compile = null,
     clang_serialization_lib: ?*Compile = null,
+    clang_api_notes_lib: ?*Compile = null,
+    clang_edit_lib: ?*Compile = null,
+    clang_parse_lib: ?*Compile = null,
+    clang_support_lib: ?*Compile = null,
+    clang_analysis_lib: ?*Compile = null,
     clang_tooling_lib: ?*Compile = null,
     clang_tooling_core_lib: ?*Compile = null,
     clang_tooling_syntax_lib: ?*Compile = null,
