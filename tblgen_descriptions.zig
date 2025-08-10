@@ -125,6 +125,10 @@ pub fn getClangTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []c
         .{ .output_basename = "DeclNodes.inc", .flags = &.{"-gen-clang-decl-nodes"}, .folder = .ast },
     };
 
+    const opencl_builtins_targets = &[_]ClangTablegenTarget{
+        .{ .output_basename = "OpenCLBuiltins.inc", .flags = &.{"-gen-clang-opencl-builtins"}, .folder = .none },
+    };
+
     const stmt_nodes_targets = &[_]ClangTablegenTarget{.{ .output_basename = "StmtNodes.inc", .flags = &.{"-gen-clang-stmt-nodes"}, .folder = .ast }};
 
     const builtins_targets = &[_]ClangTablegenTarget{.{ .output_basename = "Builtins.inc", .flags = &.{"-gen-clang-builtins"} }};
@@ -453,6 +457,11 @@ pub fn getClangTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []c
         .{
             .td_file = root.path(b, "clang/lib/AST/ByteCode/Opcodes.td"),
             .targets = opcodes_targets,
+            .td_includes = includes,
+        },
+        .{
+            .td_file = root.path(b, "clang/lib/Sema/OpenCLBuiltins.td"),
+            .targets = opencl_builtins_targets,
             .td_includes = includes,
         },
     };

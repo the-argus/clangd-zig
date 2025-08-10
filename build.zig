@@ -1052,18 +1052,17 @@ pub fn build(b: *std.Build) !void {
     ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_lex_lib.?);
     ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_tooling_core_lib.?);
     ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_tooling_inclusions_lib.?);
+    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_tooling_dependency_scanning_lib.?);
+    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_driver_lib.?);
+    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_frontend_lib.?);
+    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_sema_lib.?);
+    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_index_lib.?);
+    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_serialization_lib.?);
+    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_tooling_lib.?);
+    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_tooling_syntax_lib.?);
+    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_tooling_inclusions_stdlib_lib.?);
 
     // libs to build and link
-    // clangDependencyScanning
-    // clangDriver
-    // clangFrontend
-    // clangIndex
-    // clangSema
-    // clangSerialization
-    // clangTooling
-    // clangToolingInclusionsStdlib
-    // clangToolingSyntax
-    //
     // ${LLVM_PTHREAD_LIB}
     // clangIncludeCleaner
     // clangTidy

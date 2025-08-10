@@ -805,6 +805,33 @@ pub const clang_tooling_lib_cpp_files = &.{
     "Tooling.cpp",
 };
 
+pub const clang_index_lib_cpp_files = &.{
+    "CommentToXML.cpp",
+    "FileIndexRecord.cpp",
+    "IndexBody.cpp",
+    "IndexDecl.cpp",
+    "IndexingAction.cpp",
+    "IndexingContext.cpp",
+    "IndexSymbol.cpp",
+    "IndexTypeSourceInfo.cpp",
+    "USRGeneration.cpp",
+};
+
+pub const clang_tooling_syntax_lib_cpp_files = &.{
+    "BuildTree.cpp",
+    "ComputeReplacements.cpp",
+    "Nodes.cpp",
+    "Mutations.cpp",
+    "TokenBufferTokenManager.cpp",
+    "Synthesis.cpp",
+    "Tokens.cpp",
+    "Tree.cpp",
+};
+
+pub const clang_tooling_inclusions_stdlib_lib_cpp_files = &.{
+    "StandardLibrary.cpp",
+};
+
 pub const demangle_cpp_files = &.{
     "Demangle.cpp",
     "ItaniumDemangle.cpp",
