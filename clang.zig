@@ -183,6 +183,7 @@ pub fn build(ctx: *Context) void {
         });
         ctx.targets.clang_driver_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
         ctx.targets.clang_driver_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        ctx.targets.clang_driver_lib.?.addIncludePath(ctx.paths.clang.lib.driver.path);
         ctx.targets.clang_driver_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
     }
 

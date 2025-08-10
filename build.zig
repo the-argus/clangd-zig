@@ -1019,6 +1019,7 @@ pub fn build(b: *std.Build) !void {
     ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_ast_matchers_lib.?);
     ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
     ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_format_lib.?);
+    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_driver_lib.?);
     ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_lex_lib.?);
     ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_tooling_core_lib.?);
     ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_tooling_inclusions_lib.?);
