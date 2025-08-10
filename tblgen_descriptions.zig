@@ -19,6 +19,8 @@ pub const TablegenOutputFolder = enum {
     checkers,
     syntax,
     none,
+    sema,
+    target_parser,
 
     pub fn toRelativePath(self: @This()) []const u8 {
         return switch (self) {
@@ -32,6 +34,8 @@ pub const TablegenOutputFolder = enum {
             .checkers => "clang/StaticAnalyzer/Checkers",
             .syntax => "clang/Tooling/Syntax",
             .none => "",
+            .sema => "clang/Sema",
+            .target_parser => "llvm/TargetParser",
         };
     }
 };
@@ -105,11 +109,16 @@ pub fn getClangTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []c
         .{ .output_basename = "AttrHasAttributeImpl.inc", .flags = &.{"-gen-clang-attr-has-attribute-impl"} },
         .{ .output_basename = "CXX11AttributeInfo.inc", .flags = &.{"-gen-cxx11-attribute-info"} },
         .{ .output_basename = "Attrs.inc", .flags = &.{"-gen-clang-attr-classes"}, .folder = .ast },
+        .{ .output_basename = "AttrImpl.inc", .flags = &.{"-gen-clang-attr-impl"}, .folder = .ast },
         .{ .output_basename = "AttrsImpl.inc", .flags = &.{"-gen-clang-attr-impl"}, .folder = .ast },
         .{ .output_basename = "AttrTextNodeDump.inc", .flags = &.{"-gen-clang-attr-text-node-dump"}, .folder = .ast },
         .{ .output_basename = "AttrNodeTraverse.inc", .flags = &.{"-gen-clang-attr-node-traverse"}, .folder = .ast },
         .{ .output_basename = "AttrVisitor.inc", .flags = &.{"-gen-clang-attr-ast-visitor"}, .folder = .ast },
-        .{ .output_basename = "AttrDocTable.inc", .flags = &.{"-gen-clang-attr-doc-table"}, .folder = .checkers },
+        .{ .output_basename = "AttrDocTable.inc", .flags = &.{"-gen-clang-attr-doc-table"}, .folder = .none },
+        .{ .output_basename = "AttrTemplateInstantiate.inc", .flags = &.{"-gen-clang-attr-template-instantiate"}, .folder = .sema },
+        .{ .output_basename = "AttrParsedAttrKinds.inc", .flags = &.{"-gen-clang-attr-parsed-attr-kinds"}, .folder = .sema },
+        .{ .output_basename = "AttrSpellingListIndex.inc", .flags = &.{"-gen-clang-attr-spelling-index"}, .folder = .sema },
+        .{ .output_basename = "AttrParsedAttrImpl.inc", .flags = &.{"-gen-clang-attr-parsed-attr-impl"}, .folder = .sema },
     };
     const declnode_targets = &[_]ClangTablegenTarget{
         .{ .output_basename = "DeclNodes.inc", .flags = &.{"-gen-clang-decl-nodes"} },
@@ -120,7 +129,7 @@ pub fn getClangTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []c
 
     const builtins_targets = &[_]ClangTablegenTarget{.{ .output_basename = "Builtins.inc", .flags = &.{"-gen-clang-builtins"} }};
     const builtins_bpf_targets = &[_]ClangTablegenTarget{.{ .output_basename = "BuiltinsBPF.inc", .flags = &.{"-gen-clang-builtins"} }};
-    const builtins_hexagon_targets = &[_]ClangTablegenTarget{.{ .output_basename = "BuiltinsBPF.inc", .flags = &.{"-gen-clang-builtins"} }};
+    const builtins_hexagon_targets = &[_]ClangTablegenTarget{.{ .output_basename = "BuiltinsHexagon.inc", .flags = &.{"-gen-clang-builtins"} }};
     const builtins_nvptx_targets = &[_]ClangTablegenTarget{.{ .output_basename = "BuiltinsNVPTX.inc", .flags = &.{"-gen-clang-builtins"} }};
     const builtins_riscv_targets = &[_]ClangTablegenTarget{.{ .output_basename = "BuiltinsRISCV.inc", .flags = &.{"-gen-clang-builtins"} }};
     const builtins_spirv_targets = &[_]ClangTablegenTarget{.{ .output_basename = "BuiltinsSPIRV.inc", .flags = &.{"-gen-clang-builtins"} }};
@@ -454,10 +463,18 @@ pub fn getClangTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []c
 }
 
 pub fn getLLVMTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []const ClangTablegenDescription {
-    const includes = b.allocator.create([1]LazyPath) catch @panic("OOM");
-    includes.* = [_]LazyPath{root.path(b, "llvm/include")};
+    const includes = b.allocator.create([4]LazyPath) catch @panic("OOM");
+    includes.* = [_]LazyPath{
+        root.path(b, "llvm/include"),
+        root.path(b, "llvm/lib/Target/ARM"),
+        root.path(b, "llvm/lib/Target/AArch64"),
+        root.path(b, "llvm/lib/Target/RISCV"),
+    };
 
     const options_targets = &[_]ClangTablegenTarget{.{ .output_basename = "Options.inc", .flags = &.{"-gen-opt-parser-defs"}, .folder = .driver }};
+    const arm_targetparser_targets = &[_]ClangTablegenTarget{.{ .output_basename = "ARMTargetParserDef.inc", .flags = &.{"-gen-arm-target-def"}, .folder = .target_parser }};
+    const aarch64_targetparser_targets = &[_]ClangTablegenTarget{.{ .output_basename = "AArch64TargetParserDef.inc", .flags = &.{"-gen-arm-target-def"}, .folder = .target_parser }};
+    const riscv_targetparser_targets = &[_]ClangTablegenTarget{.{ .output_basename = "RISCVTargetParserDef.inc", .flags = &.{"-gen-riscv-target-def"}, .folder = .target_parser }};
     const openmp_targets = &[_]ClangTablegenTarget{
         .{ .output_basename = "OMP.h.inc", .flags = &.{"--gen-directive-decl"}, .folder = .openmp },
         .{ .output_basename = "OMP.inc", .flags = &.{"--gen-directive-impl"}, .folder = .openmp },
@@ -472,6 +489,21 @@ pub fn getLLVMTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []co
         .{
             .td_file = root.path(b, "clang/include/clang/Driver/Options.td"),
             .targets = options_targets,
+            .td_includes = includes,
+        },
+        .{
+            .td_file = root.path(b, "llvm/lib/Target/ARM/ARM.td"),
+            .targets = arm_targetparser_targets,
+            .td_includes = includes,
+        },
+        .{
+            .td_file = root.path(b, "llvm/lib/Target/AArch64/AArch64.td"),
+            .targets = aarch64_targetparser_targets,
+            .td_includes = includes,
+        },
+        .{
+            .td_file = root.path(b, "llvm/lib/Target/RISCV/RISCV.td"),
+            .targets = riscv_targetparser_targets,
             .td_includes = includes,
         },
     };

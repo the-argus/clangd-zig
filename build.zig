@@ -543,6 +543,7 @@ pub const Targets = struct {
     clang_tooling_dependency_scanning_lib: ?*Compile = null,
     clang_rewrite_lib: ?*Compile = null,
     clang_basic_version_config_header: ?*std.Build.Step.ConfigHeader = null,
+    clang_version_inc: ?LazyPath = null,
     clang_config_config_header: ?*std.Build.Step.ConfigHeader = null,
 
     clang_tablegenerated_incs: ?LazyPath = null,
@@ -629,6 +630,7 @@ pub const Context = struct {
         addLLVMIncludesAndLinks(ctx, c).addIncludePath(ctx.paths.clang.include.path);
         c.addConfigHeader(ctx.targets.clang_basic_version_config_header.?);
         c.addConfigHeader(ctx.targets.clang_config_config_header.?);
+        c.addIncludePath(ctx.targets.clang_version_inc.?);
         return c;
     }
 
