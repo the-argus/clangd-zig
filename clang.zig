@@ -19,6 +19,45 @@ pub fn build(ctx: *Context) void {
         },
     );
 
+    if (!ctx.opts.clang_enable_static_analyzer and ctx.opts.clang_enable_arcmt) {
+        @panic("Cannot disable static analyzer while enabling ARCMT or Z3");
+    }
+
+    ctx.targets.clang_config_config_header = ctx.b.addConfigHeader(
+        ctx.paths.clang.include.clang.config.config_config_header.makeOptions(),
+        .{
+            .BUG_REPORT_URL = Build.bug_report_url,
+            .CLANG_DEFAULT_PIE_ON_LINUX = ctx.opts.clang_default_pie_on_linux,
+            .CLANG_DEFAULT_LINKER = ctx.opts.clang_default_linker,
+            .CLANG_DEFAULT_CXX_STDLIB = ctx.opts.clang_default_cxx_stdlib,
+            .CLANG_DEFAULT_RTLIB = ctx.opts.clang_default_rtlib,
+            .CLANG_DEFAULT_UNWINDLIB = ctx.opts.clang_default_unwindlib,
+            .CLANG_DEFAULT_OBJCOPY = ctx.opts.clang_default_objcopy,
+            .CLANG_DEFAULT_OPENMP_RUNTIME = ctx.opts.clang_default_openmp_runtime,
+            .CLANG_SYSTEMZ_DEFAULT_ARCH = ctx.opts.clang_systemz_default_arch,
+            .CLANG_INSTALL_LIBDIR_BASENAME = ctx.b.fmt("lib{s}", .{if (ctx.target.is_64_bit) "64" else ""}),
+            .CLANG_RESOURCE_DIR = ctx.opts.clang_resource_dir,
+            .C_INCLUDE_DIRS = ctx.opts.clang_c_include_dirs,
+            .CLANG_CONFIG_FILE_SYSTEM_DIR = "", // TODO: how are these two dirs determined in original cmake?
+            .CLANG_CONFIG_FILE_USER_DIR = "",
+            .DEFAULT_SYSROOT = ctx.opts.default_sysroot,
+            .GCC_INSTALL_PREFIX = ctx.opts.gcc_install_prefix,
+            .CLANG_HAVE_LIBXML = ctx.opts.clang_enable_libxml2,
+            .CLANG_HAVE_RLIMITS = Context.targetHasHeader(ctx.module_opts.target.?.result, .RLIMITS_H),
+            .CLANG_HAVE_DLFCN_H = Context.targetHasHeader(ctx.module_opts.target.?.result, .DLFCN_H),
+            .CLANG_HAVE_DLADDR = Context.targetHasSymbol(ctx.module_opts.target.?.result, .DLADDR),
+            .HOST_LINK_VERSION = @as(i64, @intCast(ctx.opts.host_link_version)),
+            .ENABLE_LINKER_BUILD_ID = ctx.opts.enable_linker_build_id,
+            .ENABLE_X86_RELAX_RELOCATIONS = ctx.opts.enable_x86_relax_relocations,
+            .PPC_LINUX_DEFAULT_IEEELONGDOUBLE = ctx.opts.ppc_linux_default_ieeelongdouble,
+            .CLANG_ENABLE_ARCMT = ctx.opts.clang_enable_arcmt,
+            .CLANG_ENABLE_OBJC_REWRITER = ctx.opts.clang_enable_arcmt,
+            .CLANG_ENABLE_STATIC_ANALYZER = ctx.opts.clang_enable_static_analyzer,
+            .CLANG_SPAWN_CC1 = ctx.opts.clang_spawn_cc1,
+            .CLANG_ENABLE_CIR = ctx.opts.clang_enable_cir,
+        },
+    );
+
     ctx.targets.clang_host_component_support_lib = ctx.addClangLibrary(.{
         .name = "clangSupport",
         .root_module = ctx.makeHostModule(),

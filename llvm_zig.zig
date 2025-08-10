@@ -1,10 +1,11 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const Context = @import("build.zig").Context;
-const ABIBreakingChecks = @import("build.zig").ABIBreakingChecks;
-const version = @import("build.zig").version;
-const version_string = @import("build.zig").version_string;
+const Build = @import("build.zig");
+const Context = Build.Context;
+const ABIBreakingChecks = Build.ABIBreakingChecks;
+const version = Build.version;
+const version_string = Build.version_string;
 const sources = @import("clangd_sources.zig");
 
 const llvm_all_targets = &[_][]const u8{
@@ -199,7 +200,7 @@ pub fn build(ctx: *Context) void {
     const private_opts = ctx.paths.llvm.include.llvm.config.llvm_private_config_header.makeOptions();
     const target = ctx.module_opts.target.?.result;
     ctx.targets.llvm_private_config_header = ctx.b.addConfigHeader(private_opts, .{
-        .BUG_REPORT_URL = "https://github.com/llvm/llvm-project/issues/",
+        .BUG_REPORT_URL = Build.bug_report_url,
         .ENABLE_BACKTRACES = false,
         .ENABLE_CRASH_OVERRIDES = false,
         .LLVM_ENABLE_CRASH_DUMPS = false,

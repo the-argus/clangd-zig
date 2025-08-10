@@ -9,8 +9,12 @@ const tblgen_descriptions = @import("tblgen_descriptions.zig");
 const ClangTablegenDescription = tblgen_descriptions.ClangTablegenDescription;
 pub const version = std.SemanticVersion{ .major = 20, .minor = 1, .patch = 8 };
 pub const version_string = "20.1.8";
+pub const bug_report_url = "https://github.com/llvm/llvm-project/issues/";
 
 pub const Options = struct {
+    // NOTE: if a field of this struct has a default value, thats because it
+    // is not exposed via build options, and just uses that constant default
+    // value
     enable_grpc_reflection: bool,
 
     // options for llvm subdir
@@ -28,6 +32,41 @@ pub const Options = struct {
     clangd_decision_forest: bool,
     clangd_enable_remote: bool,
     clangd_build_xpc: bool,
+
+    clang_enable_libxml2: bool = false,
+    // llvm_enable_libxml2: bool = false,
+    // llvm_install_toolchain_only: bool = false,
+    // llvm_force_use_old_toolchain: bool = false,
+    // clang_enable_bootstrap: bool = false,
+    clang_default_pie_on_linux: bool = true,
+    clang_systemz_default_arch: []const u8 = "z10",
+    clang_default_openmp_runtime: []const u8 = "libomp",
+    clang_default_objcopy: []const u8 = "objcopy",
+    clang_default_unwindlib: []const u8 = "none", // or "libgcc" or "libunwind"
+    clang_default_rtlib: []const u8 = "platform", // or "libgcc" or "compiler-rt"
+    clang_default_cxx_stdlib: []const u8 = "libc++",
+    clang_default_linker: []const u8 = "lld",
+    clang_resource_dir: []const u8 = "",
+    clang_c_include_dirs: []const u8 = "",
+    default_sysroot: []const u8 = "",
+    gcc_install_prefix: []const u8 = "",
+    host_link_version: usize = 0,
+    enable_linker_build_id: bool = false,
+    enable_x86_relax_relocations: bool = true,
+    ppc_linux_default_ieeelongdouble: bool = false,
+    clang_enable_arcmt: bool = false, // true in original cmake
+    clang_enable_static_analyzer: bool = false, // true in original cmake
+    clang_spawn_cc1: bool = false,
+    clang_enable_cir: bool = false,
+    // clang_build_tools: bool = true,
+    // clang_enable_arcmt: bool = false, // default is true in llvm project
+    // clang_enable_static_analyzer: bool = true,
+    // clang_enable_proto_fuzzer: bool = false,
+    // clang_force_matching_libclang_soversion: bool = true,
+    // clang_include_tests: bool = false,
+    // clang_enable_hlsl: bool = false,
+    // clang_build_examples: bool = false,
+    // clang_include_docs: bool = false,
 
     supported_targets: LLVMSupportedTargets,
 };
@@ -100,6 +139,9 @@ pub const Paths = struct {
         include: struct {
             path: LazyPath,
             clang: struct {
+                config: struct {
+                    config_config_header: ConfigHeader,
+                },
                 basic: struct {
                     path: LazyPath,
                     clang_basic_version_config_header: ConfigHeader,
@@ -274,6 +316,12 @@ pub const Paths = struct {
                 .include = .{
                     .path = root.path(b, "clang/include"),
                     .clang = .{
+                        .config = .{
+                            .config_config_header = ConfigHeader{
+                                .output_include_path = "clang/Config/config.h",
+                                .unconfigured_header_path = root.path(b, "clang/include/clang/Config/config.h.cmake"),
+                            },
+                        },
                         .basic = .{
                             .path = root.path(b, "clang/include/clang/Basic"),
                             .clang_basic_version_config_header = ConfigHeader{
@@ -495,6 +543,7 @@ pub const Targets = struct {
     clang_tooling_dependency_scanning_lib: ?*Compile = null,
     clang_rewrite_lib: ?*Compile = null,
     clang_basic_version_config_header: ?*std.Build.Step.ConfigHeader = null,
+    clang_config_config_header: ?*std.Build.Step.ConfigHeader = null,
 
     clang_tablegenerated_incs: ?LazyPath = null,
     llvm_tablegenerated_incs: ?LazyPath = null,
@@ -512,6 +561,11 @@ pub const Context = struct {
     clang_tablegen_files: []const ClangTablegenDescription,
     llvm_tablegen_files: []const ClangTablegenDescription,
     llvm_min_tablegen_files: []const ClangTablegenDescription,
+
+    target: struct {
+        is_64_bit: bool,
+        pointer_bit_width: usize,
+    },
 
     global_system_libraries: std.ArrayList([]const u8),
     global_flags: std.ArrayList([]const u8),
@@ -531,6 +585,10 @@ pub const Context = struct {
             .targets = .{},
             .paths = Paths.new(b, llvm_source_root),
             .opts = allocated_opts,
+            .target = .{
+                .is_64_bit = module_opts.target.?.result.ptrBitWidth() == 64,
+                .pointer_bit_width = module_opts.target.?.result.ptrBitWidth(),
+            },
             .clang_tablegen_files = tblgen_descriptions.getClangTablegenDescriptions(b, llvm_source_root),
             .llvm_tablegen_files = tblgen_descriptions.getLLVMTablegenDescriptions(b, llvm_source_root),
             .llvm_min_tablegen_files = tblgen_descriptions.getLLVMMinTablegenDescriptions(b, llvm_source_root),
@@ -542,7 +600,7 @@ pub const Context = struct {
         if (module_opts.target.?.result.abi.isGnu()) {
             out.global_flags.append("-D_GNU_SOURCE") catch @panic("OOM");
 
-            if (module_opts.target.?.result.ptrBitWidth() == 32) {
+            if (out.target.pointer_bit_width == 32) {
                 // enable 64bit off_t on 32bit systems using glibc
                 out.global_flags.append("-D_FILE_OFFSET_BITS=64") catch @panic("OOM");
             }
@@ -570,6 +628,7 @@ pub const Context = struct {
     fn addClangIncludesAndLinks(ctx: @This(), c: *Compile) *Compile {
         addLLVMIncludesAndLinks(ctx, c).addIncludePath(ctx.paths.clang.include.path);
         c.addConfigHeader(ctx.targets.clang_basic_version_config_header.?);
+        c.addConfigHeader(ctx.targets.clang_config_config_header.?);
         return c;
     }
 
@@ -673,6 +732,8 @@ pub const Context = struct {
         SYS_MMAN_H,
         SYSEXITS_H,
         UNISTD_H,
+        RLIMITS_H,
+        DLFCN_H,
     };
 
     // TODO: are these headers ever provided by zig for platforms that typically
@@ -702,12 +763,17 @@ pub const Context = struct {
                 .zos => false,
                 else => default_for_unsupported,
             },
+            .RLIMITS_H, .DLFCN_H => switch (os) {
+                .linux => true, // TODO: this is not accurate, also maybe override build option is needed
+                else => false,
+            },
         };
     }
 
     const Symbol = enum {
         GETPAGESIZE,
         SYSCONF,
+        DLADDR,
     };
 
     pub fn targetHasSymbol(target: std.Target, sym: Symbol) bool {
@@ -727,6 +793,10 @@ pub const Context = struct {
                 .zos => false,
                 .windows => false,
                 else => default_for_unsupported,
+            },
+            .DLADDR => switch (os) {
+                .linux => true, // TODO: this is not accurate, also maybe override build option is needed
+                else => false,
             },
         };
     }
