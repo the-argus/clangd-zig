@@ -149,71 +149,31 @@ pub const Paths = struct {
             },
         },
         lib: struct {
-            support: struct {
-                path: LazyPath,
-            },
-            api_notes: struct {
-                path: LazyPath,
-            },
-            analysis: struct {
-                path: LazyPath,
-            },
-            ast: struct {
-                path: LazyPath,
-            },
-            ast_matchers: struct {
-                path: LazyPath,
-            },
-            basic: struct {
-                path: LazyPath,
-            },
-            driver: struct {
-                path: LazyPath,
-            },
-            edit: struct {
-                path: LazyPath,
-            },
-            format: struct {
-                path: LazyPath,
-            },
-            frontend: struct {
-                path: LazyPath,
-            },
-            index: struct {
-                path: LazyPath,
-            },
-            rewrite: struct {
-                path: LazyPath,
-            },
-            lex: struct {
-                path: LazyPath,
-            },
-            parse: struct {
-                path: LazyPath,
-            },
-            sema: struct {
-                path: LazyPath,
-            },
-            serialization: struct {
-                path: LazyPath,
-            },
+            support: struct { path: LazyPath },
+            api_notes: struct { path: LazyPath },
+            analysis: struct { path: LazyPath },
+            ast: struct { path: LazyPath },
+            ast_matchers: struct { path: LazyPath },
+            basic: struct { path: LazyPath },
+            driver: struct { path: LazyPath },
+            edit: struct { path: LazyPath },
+            format: struct { path: LazyPath },
+            frontend: struct { path: LazyPath },
+            index: struct { path: LazyPath },
+            rewrite: struct { path: LazyPath },
+            lex: struct { path: LazyPath },
+            parse: struct { path: LazyPath },
+            sema: struct { path: LazyPath },
+            serialization: struct { path: LazyPath },
             tooling: struct {
                 path: LazyPath,
-                dependency_scanning: struct {
-                    path: LazyPath,
-                },
+                dependency_scanning: struct { path: LazyPath },
                 inclusions: struct {
                     path: LazyPath,
-                    stdlib: struct {
-                        path: LazyPath,
-                    },
+                    stdlib: struct { path: LazyPath },
                 },
-                syntax: struct {
-                    path: LazyPath,
-                },
-                core: struct {
-                    path: LazyPath,
-                },
+                syntax: struct { path: LazyPath },
+                core: struct { path: LazyPath },
             },
         },
         utils: struct {
@@ -258,24 +218,32 @@ pub const Paths = struct {
 
         lib: struct {
             path: LazyPath,
-            target: struct {
+            target: struct { path: LazyPath },
+            target_parser: struct {
                 path: LazyPath,
+                unix: struct { path: LazyPath },
+                windows: struct { path: LazyPath },
             },
-            demangle: struct {
+            demangle: struct { path: LazyPath },
+            tablegen: struct { path: LazyPath },
+            remarks: struct { path: LazyPath },
+            ir: struct { path: LazyPath }, // AKA Core
+            object: struct { path: LazyPath },
+            analysis: struct { path: LazyPath },
+            bitcode: struct {
                 path: LazyPath,
+                reader: struct { path: LazyPath },
+                writer: struct { path: LazyPath },
             },
-            tablegen: struct {
+            bitstream: struct {
                 path: LazyPath,
+                reader: struct { path: LazyPath },
             },
             support: struct {
                 path: LazyPath,
 
-                unix: struct {
-                    path: LazyPath,
-                },
-                windows: struct {
-                    path: LazyPath,
-                },
+                unix: struct { path: LazyPath },
+                windows: struct { path: LazyPath },
             },
         },
         utils: struct {
@@ -344,71 +312,31 @@ pub const Paths = struct {
                     },
                 },
                 .lib = .{
-                    .support = .{
-                        .path = root.path(b, "clang/lib/Support"),
-                    },
-                    .api_notes = .{
-                        .path = root.path(b, "clang/lib/APINotes"),
-                    },
-                    .analysis = .{
-                        .path = root.path(b, "clang/lib/Analysis"),
-                    },
-                    .ast = .{
-                        .path = root.path(b, "clang/lib/AST"),
-                    },
-                    .ast_matchers = .{
-                        .path = root.path(b, "clang/lib/ASTMatchers"),
-                    },
-                    .basic = .{
-                        .path = root.path(b, "clang/lib/Basic"),
-                    },
-                    .driver = .{
-                        .path = root.path(b, "clang/lib/Driver"),
-                    },
-                    .edit = .{
-                        .path = root.path(b, "clang/lib/Edit"),
-                    },
-                    .format = .{
-                        .path = root.path(b, "clang/lib/Format"),
-                    },
-                    .frontend = .{
-                        .path = root.path(b, "clang/lib/Frontend"),
-                    },
-                    .index = .{
-                        .path = root.path(b, "clang/lib/Index"),
-                    },
-                    .rewrite = .{
-                        .path = root.path(b, "clang/lib/Rewrite"),
-                    },
-                    .lex = .{
-                        .path = root.path(b, "clang/lib/Lex"),
-                    },
-                    .parse = .{
-                        .path = root.path(b, "clang/lib/Parse"),
-                    },
-                    .sema = .{
-                        .path = root.path(b, "clang/lib/Sema"),
-                    },
-                    .serialization = .{
-                        .path = root.path(b, "clang/lib/Serialization"),
-                    },
+                    .support = .{ .path = root.path(b, "clang/lib/Support") },
+                    .api_notes = .{ .path = root.path(b, "clang/lib/APINotes") },
+                    .analysis = .{ .path = root.path(b, "clang/lib/Analysis") },
+                    .ast = .{ .path = root.path(b, "clang/lib/AST") },
+                    .ast_matchers = .{ .path = root.path(b, "clang/lib/ASTMatchers") },
+                    .basic = .{ .path = root.path(b, "clang/lib/Basic") },
+                    .driver = .{ .path = root.path(b, "clang/lib/Driver") },
+                    .edit = .{ .path = root.path(b, "clang/lib/Edit") },
+                    .format = .{ .path = root.path(b, "clang/lib/Format") },
+                    .frontend = .{ .path = root.path(b, "clang/lib/Frontend") },
+                    .index = .{ .path = root.path(b, "clang/lib/Index") },
+                    .rewrite = .{ .path = root.path(b, "clang/lib/Rewrite") },
+                    .lex = .{ .path = root.path(b, "clang/lib/Lex") },
+                    .parse = .{ .path = root.path(b, "clang/lib/Parse") },
+                    .sema = .{ .path = root.path(b, "clang/lib/Sema") },
+                    .serialization = .{ .path = root.path(b, "clang/lib/Serialization") },
                     .tooling = .{
                         .path = root.path(b, "clang/lib/Tooling"),
-                        .dependency_scanning = .{
-                            .path = root.path(b, "clang/lib/Tooling/DependencyScanning"),
-                        },
+                        .dependency_scanning = .{ .path = root.path(b, "clang/lib/Tooling/DependencyScanning") },
                         .inclusions = .{
                             .path = root.path(b, "clang/lib/Tooling/Inclusions"),
-                            .stdlib = .{
-                                .path = root.path(b, "clang/lib/Tooling/Inclusions/Stdlib"),
-                            },
+                            .stdlib = .{ .path = root.path(b, "clang/lib/Tooling/Inclusions/Stdlib") },
                         },
-                        .syntax = .{
-                            .path = root.path(b, "clang/lib/Tooling/Syntax"),
-                        },
-                        .core = .{
-                            .path = root.path(b, "clang/lib/Tooling/Core"),
-                        },
+                        .syntax = .{ .path = root.path(b, "clang/lib/Tooling/Syntax") },
+                        .core = .{ .path = root.path(b, "clang/lib/Tooling/Core") },
                     },
                 },
                 .utils = .{
@@ -478,23 +406,31 @@ pub const Paths = struct {
                 },
                 .lib = .{
                     .path = root.path(b, "llvm/lib"),
-                    .target = .{
-                        .path = root.path(b, "llvm/lib/Target"),
+                    .target = .{ .path = root.path(b, "llvm/lib/Target") },
+                    .target_parser = .{
+                        .path = root.path(b, "llvm/lib/TargetParser"),
+                        .unix = .{ .path = root.path(b, "llvm/lib/TargetParser/Unix") },
+                        .windows = .{ .path = root.path(b, "llvm/lib/TargetParser/Windows") },
                     },
-                    .demangle = .{
-                        .path = root.path(b, "llvm/lib/Demangle"),
-                    },
-                    .tablegen = .{
-                        .path = root.path(b, "llvm/lib/TableGen"),
-                    },
+                    .demangle = .{ .path = root.path(b, "llvm/lib/Demangle") },
+                    .tablegen = .{ .path = root.path(b, "llvm/lib/TableGen") },
                     .support = .{
                         .path = root.path(b, "llvm/lib/Support"),
-                        .unix = .{
-                            .path = root.path(b, "llvm/lib/Support/Unix"),
-                        },
-                        .windows = .{
-                            .path = root.path(b, "llvm/lib/Support/Windows"),
-                        },
+                        .unix = .{ .path = root.path(b, "llvm/lib/Support/Unix") },
+                        .windows = .{ .path = root.path(b, "llvm/lib/Support/Windows") },
+                    },
+                    .remarks = .{ .path = root.path(b, "llvm/lib/Remarks") },
+                    .ir = .{ .path = root.path(b, "llvm/lib/IR") },
+                    .object = .{ .path = root.path(b, "llvm/lib/Object") },
+                    .analysis = .{ .path = root.path(b, "llvm/lib/Analysis") },
+                    .bitcode = .{
+                        .path = root.path(b, "llvm/lib/Bitcode"),
+                        .reader = .{ .path = root.path(b, "llvm/lib/Bitcode/Reader") },
+                        .writer = .{ .path = root.path(b, "llvm/lib/Bitcode/Writer") },
+                    },
+                    .bitstream = .{
+                        .path = root.path(b, "llvm/lib/Bitstream"),
+                        .reader = .{ .path = root.path(b, "llvm/lib/Bitstream/Reader") },
                     },
                 },
                 .utils = .{
@@ -546,6 +482,18 @@ pub const Targets = struct {
     llvm_host_component_tblgen_common_lib: ?*Compile = null,
     llvm_host_component_tblgen_exe: ?*Compile = null,
     llvm_host_component_tblgen_min_exe: ?*Compile = null, // for bootstrapping
+
+    llvm_support_lib: ?*Compile = null,
+    llvm_all_targets_infos_lib: ?*Compile = null,
+    llvm_frontend_openmp_lib: ?*Compile = null,
+    llvm_option_lib: ?*Compile = null,
+    llvm_target_parser_lib: ?*Compile = null,
+    llvm_remarks_lib: ?*Compile = null,
+    llvm_object_lib: ?*Compile = null,
+    llvm_core_lib: ?*Compile = null,
+    llvm_analysis_lib: ?*Compile = null,
+    llvm_bitcode_lib: ?*Compile = null,
+    llvm_bitstream_lib: ?*Compile = null,
 
     clang_host_component_tblgen_exe: ?*Compile = null,
     clang_host_component_support_lib: ?*Compile = null,
@@ -1065,6 +1013,9 @@ pub fn build(b: *std.Build) !void {
     ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_tooling_lib.?);
     ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_tooling_syntax_lib.?);
     ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_tooling_inclusions_stdlib_lib.?);
+
+    // bring in llvm
+    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.llvm_support_lib.?);
 
     // libs to build and link
     // ${LLVM_PTHREAD_LIB}

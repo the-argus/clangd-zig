@@ -5,10 +5,13 @@ const std = @import("std");
 
 const Context = @import("build.zig").Context;
 
-pub fn build(ctx: *Context) void {
-    ctx.targets.llvm_host_component_support_lib = ctx.addLLVMLibrary(.{
+pub fn build(ctx: *Context, target: std.Build.ResolvedTarget) *std.Build.Step.Compile {
+    const support_lib = ctx.addLLVMLibrary(.{
         .name = "support",
-        .root_module = ctx.makeHostModule(),
+        .root_module = ctx.b.createModule(.{
+            .target = target,
+            .optimize = ctx.module_opts.optimize,
+        }),
         .linkage = .static,
     });
 
@@ -28,50 +31,52 @@ pub fn build(ctx: *Context) void {
             "ntdll",
         };
         for (libs_windows) |lib| {
-            ctx.targets.llvm_host_component_support_lib.?.linkSystemLibrary(lib);
+            support_lib.linkSystemLibrary(lib);
         }
     } else if (Context.osIsUnixLike(host_os_tag)) {
         // link llvm atomic lib
         // link llvm pthread lib
 
         if (Context.osIsUnixLike(target_os_tag) and target_os_tag != .haiku) {
-            ctx.targets.llvm_host_component_support_lib.?.linkSystemLibrary("m");
+            support_lib.linkSystemLibrary("m");
         }
         if (target_os_tag == .haiku) {
-            ctx.targets.llvm_host_component_support_lib.?.linkSystemLibrary("bsd");
-            ctx.targets.llvm_host_component_support_lib.?.linkSystemLibrary("network");
+            support_lib.linkSystemLibrary("bsd");
+            support_lib.linkSystemLibrary("network");
             flags.append("-D_BSD_SOURCE") catch @panic("OOM");
         }
         if (target_os_tag == .fuchsia) {
-            ctx.targets.llvm_host_component_support_lib.?.linkSystemLibrary("zircon");
+            support_lib.linkSystemLibrary("zircon");
         }
     }
 
     // TODO: Z3 link libraries here if enabled
 
-    ctx.targets.llvm_host_component_support_lib.?.addCSourceFiles(.{
+    support_lib.addCSourceFiles(.{
         .language = .cpp,
         .files = cpp_files,
         .root = ctx.paths.llvm.lib.support.path,
         .flags = flags.toOwnedSlice() catch @panic("OOM"),
     });
-    ctx.targets.llvm_host_component_support_lib.?.addCSourceFiles(.{
+    support_lib.addCSourceFiles(.{
         .language = .c,
         .files = c_files,
         .root = ctx.paths.llvm.lib.support.path,
         .flags = flags.toOwnedSlice() catch @panic("OOM"),
     });
-    ctx.targets.llvm_host_component_support_lib.?.addIncludePath(ctx.paths.llvm.include.llvm.support.path);
-    ctx.targets.llvm_host_component_support_lib.?.addIncludePath(ctx.paths.llvm.include.llvm.adt.path);
-    ctx.targets.llvm_host_component_support_lib.?.addIncludePath(ctx.paths.llvm.lib.support.windows.path);
-    ctx.targets.llvm_host_component_support_lib.?.addIncludePath(ctx.paths.llvm.lib.support.unix.path);
-    ctx.targets.llvm_host_component_support_lib.?.linkLibrary(ctx.targets.llvm_host_component_demangle_lib.?);
+    support_lib.addIncludePath(ctx.paths.llvm.include.llvm.support.path);
+    support_lib.addIncludePath(ctx.paths.llvm.include.llvm.adt.path);
+    support_lib.addIncludePath(ctx.paths.llvm.lib.support.windows.path);
+    support_lib.addIncludePath(ctx.paths.llvm.lib.support.unix.path);
+    support_lib.linkLibrary(ctx.targets.llvm_host_component_demangle_lib.?);
 
     if (ctx.targets.zlib) |zlib| {
-        ctx.targets.llvm_host_component_support_lib.?.linkLibrary(zlib);
+        support_lib.linkLibrary(zlib);
     } else {
         std.debug.assert(!ctx.opts.llvm_enable_zlib);
     }
+
+    return support_lib;
 }
 
 const cpp_files = &.{

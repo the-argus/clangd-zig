@@ -138,7 +138,8 @@ pub fn build(ctx: *Context) void {
             if (is_supported) {
                 const Set = std.static_string_map.StaticStringMap(void);
                 supported_targets_writer.print("LLVM_TARGET({s})\n", .{target_field.name}) catch @panic("OOM, or format error");
-                // NOTE: in normal LLVM there is a check to make sure llvm/lib/Target/${targetname}/*AsmPrinter.cpp exists, but all targets currently have one so we just skip that
+                // NOTE: in normal LLVM there is a check to make sure llvm/lib/Target/${targetname}/*AsmPrinter.cpp exists,
+                // but all targets currently have one so we just skip that
                 asm_printers_writer.print("LLVM_ASM_PRINTER({s})\n", .{target_field.name}) catch @panic("OOM, or format error");
                 if (!Set.initComptime(.{ .{"ARC"}, .{"DirectX"}, .{"NVPTX"}, .{"SPIRV"}, .{"XCore"} }).has(target_field.name)) {
                     asm_parsers_writer.print("LLVM_ASM_PARSER({s})\n", .{target_field.name}) catch @panic("OOM, or format error");
@@ -310,7 +311,8 @@ pub fn build(ctx: *Context) void {
     });
 
     // depends on demangle lib along with the abi-breaking, public and private config headers
-    @import("llvm_zig_support.zig").build(ctx);
+    ctx.targets.llvm_host_component_support_lib = @import("llvm_zig_support.zig").build(ctx, ctx.b.graph.host);
+    ctx.targets.llvm_support_lib = @import("llvm_zig_support.zig").build(ctx, ctx.module_opts.target.?);
 
     // build llvm tablegen lib
     ctx.targets.llvm_host_component_tablegen_lib = ctx.addLLVMLibrary(.{
