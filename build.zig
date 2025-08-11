@@ -576,6 +576,7 @@ pub const Targets = struct {
     clang_config_config_header: ?*std.Build.Step.ConfigHeader = null,
 
     clang_tablegenerated_incs: ?LazyPath = null,
+    clang_phase2_tablegenerated_incs: ?LazyPath = null,
     llvm_tablegenerated_incs: ?LazyPath = null,
 
     // cte short for clang_tools_extra
@@ -589,6 +590,7 @@ pub const Context = struct {
     paths: *const Paths,
     opts: *const Options,
     clang_tablegen_files: []const ClangTablegenDescription,
+    clang_phase2_tablegen_files: []const ClangTablegenDescription,
     llvm_tablegen_files: []const ClangTablegenDescription,
     llvm_min_tablegen_files: []const ClangTablegenDescription,
 
@@ -620,6 +622,7 @@ pub const Context = struct {
                 .pointer_bit_width = module_opts.target.?.result.ptrBitWidth(),
             },
             .clang_tablegen_files = tblgen_descriptions.getClangTablegenDescriptions(b, llvm_source_root),
+            .clang_phase2_tablegen_files = tblgen_descriptions.getPhase2ClangTablegenDescriptions(b, llvm_source_root),
             .llvm_tablegen_files = tblgen_descriptions.getLLVMTablegenDescriptions(b, llvm_source_root),
             .llvm_min_tablegen_files = tblgen_descriptions.getLLVMMinTablegenDescriptions(b, llvm_source_root),
             .global_system_libraries = std.ArrayList([]const u8).initCapacity(b.allocator, 50) catch @panic("OOM"),
@@ -1033,6 +1036,7 @@ pub fn build(b: *std.Build) !void {
     ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.clang_tools_extra.include_cleaner.include.path);
     ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.clang_tools_extra.clangd.path);
     ctx.targets.clangd_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
+    ctx.targets.clangd_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
     ctx.targets.clangd_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
     // TODO: configure and install clang-tidy headers, add the build dir as include path
     ctx.targets.clangd_lib.?.addConfigHeader(ctx.targets.cte_clang_tidy_config_config_header.?);
@@ -1088,6 +1092,7 @@ pub fn build(b: *std.Build) !void {
     ctx.targets.clangd_main_lib.?.addIncludePath(ctx.paths.clang_tools_extra.clangd.path);
     ctx.targets.clangd_main_lib.?.addIncludePath(ctx.paths.clang_tools_extra.include_cleaner.include.path);
     ctx.targets.clangd_main_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
+    ctx.targets.clangd_main_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
     ctx.targets.clangd_main_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
     ctx.targets.clangd_main_lib.?.addConfigHeader(ctx.targets.cte_clang_tidy_config_config_header.?);
 

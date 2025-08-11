@@ -103,12 +103,17 @@ pub fn build(ctx: *Context) void {
     ctx.targets.clang_host_component_tblgen_exe.?.linkLibrary(ctx.targets.clang_host_component_support_lib.?);
 
     const writefile_step = ctx.b.addWriteFiles();
+    const writefile_step_phase2 = ctx.b.addWriteFiles();
 
     // generate all the needed .inc files and copy them into the subdir
     for (ctx.clang_tablegen_files) |desc| {
         ctx.addTablegenOutputFileToWriteFileStep(writefile_step, ctx.targets.clang_host_component_tblgen_exe.?, desc);
     }
+    for (ctx.clang_phase2_tablegen_files) |desc| {
+        ctx.addTablegenOutputFileToWriteFileStep(writefile_step_phase2, ctx.targets.clang_host_component_tblgen_exe.?, desc);
+    }
     ctx.targets.clang_tablegenerated_incs = writefile_step.getDirectory();
+    ctx.targets.clang_phase2_tablegenerated_incs = writefile_step_phase2.getDirectory();
 
     {
         ctx.targets.clang_basic_lib = ctx.addClangLibrary(.{
@@ -170,6 +175,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
         ctx.targets.clang_ast_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
+        ctx.targets.clang_ast_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
         ctx.targets.clang_ast_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
         ctx.targets.clang_ast_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
         ctx.targets.clang_ast_lib.?.linkLibrary(ctx.targets.clang_lex_lib.?);
@@ -258,6 +264,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
         ctx.targets.clang_sema_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
+        ctx.targets.clang_sema_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
         ctx.targets.clang_sema_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
         ctx.targets.clang_sema_lib.?.linkLibrary(ctx.targets.clang_api_notes_lib.?);
         ctx.targets.clang_sema_lib.?.linkLibrary(ctx.targets.clang_ast_lib.?);
@@ -281,6 +288,7 @@ pub fn build(ctx: *Context) void {
         });
         ctx.targets.clang_serialization_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
         ctx.targets.clang_serialization_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        ctx.targets.clang_serialization_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
         ctx.targets.clang_serialization_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
         ctx.targets.clang_serialization_lib.?.linkLibrary(ctx.targets.clang_ast_lib.?);
         ctx.targets.clang_serialization_lib.?.linkLibrary(ctx.targets.clang_lex_lib.?);
@@ -299,6 +307,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
         ctx.targets.clang_parse_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
+        ctx.targets.clang_parse_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
         ctx.targets.clang_parse_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
         ctx.targets.clang_parse_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
         ctx.targets.clang_parse_lib.?.linkLibrary(ctx.targets.clang_ast_lib.?);
@@ -318,6 +327,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
         ctx.targets.clang_driver_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
+        ctx.targets.clang_driver_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
         ctx.targets.clang_driver_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
         ctx.targets.clang_driver_lib.?.addIncludePath(ctx.paths.clang.lib.driver.path);
         ctx.targets.clang_driver_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
@@ -335,6 +345,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
         ctx.targets.clang_frontend_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
+        ctx.targets.clang_frontend_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
         ctx.targets.clang_frontend_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
 
         ctx.targets.clang_frontend_lib.?.linkLibrary(ctx.targets.clang_api_notes_lib.?);
@@ -432,6 +443,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
         ctx.targets.clang_index_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
+        ctx.targets.clang_index_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
         ctx.targets.clang_index_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
         ctx.targets.clang_index_lib.?.linkLibrary(ctx.targets.clang_ast_lib.?);
         ctx.targets.clang_index_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
@@ -449,11 +461,12 @@ pub fn build(ctx: *Context) void {
         });
         ctx.targets.clang_tooling_syntax_lib.?.addCSourceFiles(.{
             .root = ctx.paths.clang.lib.tooling.syntax.path,
-            .files = sources.clang_frontend_lib_cpp_files,
+            .files = sources.clang_tooling_syntax_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
         ctx.targets.clang_tooling_syntax_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
+        ctx.targets.clang_tooling_syntax_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
         ctx.targets.clang_tooling_syntax_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
         ctx.targets.clang_tooling_syntax_lib.?.linkLibrary(ctx.targets.clang_ast_lib.?);
         ctx.targets.clang_tooling_syntax_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
@@ -474,6 +487,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
         ctx.targets.clang_tooling_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
+        ctx.targets.clang_tooling_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
         ctx.targets.clang_tooling_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
         ctx.targets.clang_tooling_lib.?.linkLibrary(ctx.targets.clang_ast_lib.?);
         ctx.targets.clang_tooling_lib.?.linkLibrary(ctx.targets.clang_ast_matchers_lib.?);
@@ -499,6 +513,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
         ctx.targets.clang_tooling_dependency_scanning_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
+        ctx.targets.clang_tooling_dependency_scanning_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
         ctx.targets.clang_tooling_dependency_scanning_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
         ctx.targets.clang_tooling_dependency_scanning_lib.?.linkLibrary(ctx.targets.clang_ast_lib.?);
         ctx.targets.clang_tooling_dependency_scanning_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);

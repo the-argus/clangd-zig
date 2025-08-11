@@ -21,6 +21,8 @@ pub const TablegenOutputFolder = enum {
     none,
     sema,
     target_parser,
+    parse,
+    serialization,
 
     pub fn toRelativePath(self: @This()) []const u8 {
         return switch (self) {
@@ -36,6 +38,8 @@ pub const TablegenOutputFolder = enum {
             .none => "",
             .sema => "clang/Sema",
             .target_parser => "llvm/TargetParser",
+            .parse => "clang/Parse",
+            .serialization => "clang/Serialization",
         };
     }
 };
@@ -47,11 +51,10 @@ pub const ClangTablegenDescription = struct {
 };
 
 pub fn getClangTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []const ClangTablegenDescription {
-    const includes = b.allocator.create([3]LazyPath) catch @panic("OOM");
+    const includes = b.allocator.create([2]LazyPath) catch @panic("OOM");
     includes.* = [_]LazyPath{
         root.path(b, "clang/include/"),
         root.path(b, "clang/include/clang/Basic"),
-        root.path(b, "clang/include/clang/StaticAnalyzer/Checkers"),
     };
 
     const initial_diag_target_list = &.{
@@ -125,10 +128,6 @@ pub fn getClangTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []c
         .{ .output_basename = "DeclNodes.inc", .flags = &.{"-gen-clang-decl-nodes"}, .folder = .ast },
     };
 
-    const opencl_builtins_targets = &[_]ClangTablegenTarget{
-        .{ .output_basename = "OpenCLBuiltins.inc", .flags = &.{"-gen-clang-opencl-builtins"}, .folder = .none },
-    };
-
     const stmt_nodes_targets = &[_]ClangTablegenTarget{.{ .output_basename = "StmtNodes.inc", .flags = &.{"-gen-clang-stmt-nodes"}, .folder = .ast }};
 
     const builtins_targets = &[_]ClangTablegenTarget{.{ .output_basename = "Builtins.inc", .flags = &.{"-gen-clang-builtins"} }};
@@ -179,14 +178,6 @@ pub fn getClangTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []c
     const comment_command_info_targets = &[_]ClangTablegenTarget{.{ .output_basename = "CommentCommandInfo.inc", .flags = &.{"-gen-clang-comment-command-info"}, .folder = .ast }};
     const comment_command_list_targets = &[_]ClangTablegenTarget{.{ .output_basename = "CommentCommandList.inc", .flags = &.{"-gen-clang-comment-command-list"}, .folder = .ast }};
     const stmt_data_collectors_targets = &[_]ClangTablegenTarget{.{ .output_basename = "StmtDataCollectors.inc", .flags = &.{"-gen-clang-data-collectors"}, .folder = .ast }};
-
-    const checkers_targets = &[_]ClangTablegenTarget{.{ .output_basename = "Checkers.inc", .flags = &.{"-gen-clang-sa-checkers"}, .folder = .checkers }};
-    const syntax_nodes_targets = &[_]ClangTablegenTarget{
-        .{ .output_basename = "Nodes.inc", .flags = &.{"-gen-clang-syntax-node-list"}, .folder = .syntax },
-        .{ .output_basename = "NodeClasses.inc", .flags = &.{"-gen-clang-syntax-node-classes"}, .folder = .syntax },
-    };
-
-    const opcodes_targets = &[_]ClangTablegenTarget{.{ .output_basename = "Opcodes.inc", .flags = &.{"-gen-clang-opcodes"}, .folder = .none }};
 
     const descs = [_]ClangTablegenDescription{
         .{
@@ -444,9 +435,41 @@ pub fn getClangTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []c
             .targets = stmt_data_collectors_targets,
             .td_includes = includes,
         },
+    };
+
+    const allocated = b.allocator.create(@TypeOf(descs)) catch @panic("OOM");
+    allocated.* = descs;
+    return &allocated.*;
+}
+
+/// Like getClangTablegenDescriptions, just split up into a second phase so fewer things have to rebuild
+pub fn getPhase2ClangTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []const ClangTablegenDescription {
+    const includes = b.allocator.create([3]LazyPath) catch @panic("OOM");
+    includes.* = [_]LazyPath{
+        root.path(b, "clang/include/"),
+        root.path(b, "clang/include/clang/Basic"),
+        root.path(b, "clang/include/clang/StaticAnalyzer/Checkers"),
+    };
+
+    const opencl_builtins_targets = &[_]ClangTablegenTarget{.{ .output_basename = "OpenCLBuiltins.inc", .flags = &.{"-gen-clang-opencl-builtins"}, .folder = .none }};
+    const syntax_nodes_targets = &[_]ClangTablegenTarget{
+        .{ .output_basename = "Nodes.inc", .flags = &.{"-gen-clang-syntax-node-list"}, .folder = .syntax },
+        .{ .output_basename = "NodeClasses.inc", .flags = &.{"-gen-clang-syntax-node-classes"}, .folder = .syntax },
+    };
+    const opcodes_targets = &[_]ClangTablegenTarget{.{ .output_basename = "Opcodes.inc", .flags = &.{"-gen-clang-opcodes"}, .folder = .none }};
+
+    const checkers_targets = &[_]ClangTablegenTarget{.{ .output_basename = "Checkers.inc", .flags = &.{"-gen-clang-sa-checkers"}, .folder = .checkers }};
+    const attr_targets = &[_]ClangTablegenTarget{
+        .{ .output_basename = "AttrParserStringSwitches.inc", .flags = &.{"-gen-clang-attr-parser-string-switches"}, .folder = .parse },
+        .{ .output_basename = "AttrSubMatchRulesParserStringSwitches.inc", .flags = &.{"-gen-clang-attr-subject-match-rules-parser-string-switches"}, .folder = .parse },
+        .{ .output_basename = "AttrPCHRead.inc", .flags = &.{"-gen-clang-attr-pch-read"}, .folder = .serialization },
+        .{ .output_basename = "AttrPCHWrite.inc", .flags = &.{"-gen-clang-attr-pch-write"}, .folder = .serialization },
+    };
+
+    const descs = [_]ClangTablegenDescription{
         .{
-            .td_file = root.path(b, "clang/include/clang/StaticAnalyzer/Checkers/Checkers.td"),
-            .targets = checkers_targets,
+            .td_file = root.path(b, "clang/include/clang/Basic/Attr.td"),
+            .targets = attr_targets,
             .td_includes = includes,
         },
         .{
@@ -462,6 +485,11 @@ pub fn getClangTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []c
         .{
             .td_file = root.path(b, "clang/lib/Sema/OpenCLBuiltins.td"),
             .targets = opencl_builtins_targets,
+            .td_includes = includes,
+        },
+        .{
+            .td_file = root.path(b, "clang/include/clang/StaticAnalyzer/Checkers/Checkers.td"),
+            .targets = checkers_targets,
             .td_includes = includes,
         },
     };
