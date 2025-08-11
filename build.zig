@@ -226,6 +226,9 @@ pub const Paths = struct {
             },
             demangle: struct { path: LazyPath },
             tablegen: struct { path: LazyPath },
+            option: struct { path: LazyPath },
+            transform: struct { utils: struct { path: LazyPath } },
+            frontend: struct { openmp: struct { path: LazyPath } },
             remarks: struct { path: LazyPath },
             ir: struct { path: LazyPath }, // AKA Core
             object: struct { path: LazyPath },
@@ -423,6 +426,13 @@ pub const Paths = struct {
                     .ir = .{ .path = root.path(b, "llvm/lib/IR") },
                     .object = .{ .path = root.path(b, "llvm/lib/Object") },
                     .analysis = .{ .path = root.path(b, "llvm/lib/Analysis") },
+                    .option = .{ .path = root.path(b, "llvm/lib/Option") },
+                    .transform = .{
+                        .utils = .{ .path = root.path(b, "llvm/lib/Transforms/Utils") },
+                    },
+                    .frontend = .{
+                        .openmp = .{ .path = root.path(b, "llvm/lib/Frontend/OpenMP") },
+                    },
                     .bitcode = .{
                         .path = root.path(b, "llvm/lib/Bitcode"),
                         .reader = .{ .path = root.path(b, "llvm/lib/Bitcode/Reader") },
@@ -492,8 +502,9 @@ pub const Targets = struct {
     llvm_object_lib: ?*Compile = null,
     llvm_core_lib: ?*Compile = null,
     llvm_analysis_lib: ?*Compile = null,
-    llvm_bitcode_lib: ?*Compile = null,
-    llvm_bitstream_lib: ?*Compile = null,
+    llvm_bitcode_reader_lib: ?*Compile = null,
+    llvm_bitcode_writer_lib: ?*Compile = null,
+    llvm_bitstream_reader_lib: ?*Compile = null,
 
     clang_host_component_tblgen_exe: ?*Compile = null,
     clang_host_component_support_lib: ?*Compile = null,
