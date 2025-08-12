@@ -407,6 +407,92 @@ pub fn build(ctx: *Context) void {
         }
         ctx.targets.llvm_tablegenerated_incs = writefile_step.getDirectory();
     }
+
+    {
+        ctx.targets.llvm_core_lib = ctx.b.addLibrary(.{
+            .name = "llvmCore",
+            .root_module = ctx.makeModule(),
+        });
+        ctx.targets.llvm_core_lib.?.addCSourceFiles(.{
+            .root = ctx.paths.llvm.lib.ir.path,
+            .files = sources.llvm_core_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+
+        ctx.targets.llvm_core_lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        ctx.targets.llvm_core_lib.linkLibrary(ctx.targets.llvm_support_lib.?);
+    }
+
+    {
+        ctx.targets.llvm_bitstream_reader_lib = ctx.b.addLibrary(.{
+            .name = "llvmBitstreamReader",
+            .root_module = ctx.makeModule(),
+        });
+        ctx.targets.llvm_bitstream_reader_lib.?.addCSourceFiles(.{
+            .root = ctx.paths.llvm.lib.bitstream.reader.path,
+            .files = sources.llvm_bitstream_reader_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+
+        ctx.targets.llvm_bitstream_reader_lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        ctx.targets.llvm_bitstream_reader_lib.addIncludePath(ctx.paths.llvm.lib.bitcode.path);
+        ctx.targets.llvm_bitstream_reader_lib.addIncludePath(ctx.paths.llvm.lib.bitstream.path);
+        ctx.targets.llvm_bitstream_reader_lib.linkLibrary(ctx.targets.llvm_support_lib.?);
+    }
+
+    {
+        ctx.targets.llvm_bitstream_reader_lib = ctx.b.addLibrary(.{
+            .name = "llvmBitcodeReader",
+            .root_module = ctx.makeModule(),
+        });
+        ctx.targets.llvm_bitstream_reader_lib.?.addCSourceFiles(.{
+            .root = ctx.paths.llvm.lib.bitstream.reader.path,
+            .files = sources.llvm_bitstream_reader_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+
+        ctx.targets.llvm_bitstream_reader_lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        ctx.targets.llvm_bitstream_reader_lib.addIncludePath(ctx.paths.llvm.lib.bitcode.path);
+        ctx.targets.llvm_bitstream_reader_lib.addIncludePath(ctx.paths.llvm.lib.bitstream.path);
+        ctx.targets.llvm_bitstream_reader_lib.linkLibrary(ctx.targets.llvm_support_lib.?);
+    }
+
+    {
+        ctx.targets.llvm_object_lib = ctx.b.addLibrary(.{
+            .name = "llvmObject",
+            .root_module = ctx.makeModule(),
+        });
+        ctx.targets.llvm_object_lib.?.addCSourceFiles(.{
+            .root = ctx.paths.llvm.lib.support.path,
+            .files = sources.llvm_object_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+
+        ctx.targets.llvm_object_lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        ctx.targets.llvm_object_lib.linkLibrary(ctx.targets.llvm_core_lib.?);
+        ctx.targets.llvm_object_lib.linkLibrary(ctx.targets.llvm_bitcode_reader_lib.?);
+    }
+    {
+        ctx.targets.llvm_bitstream_reader_lib = ctx.b.addLibrary(.{
+            .name = "llvmBitstreamReader",
+            .root_module = ctx.makeModule(),
+        });
+        ctx.targets.llvm_bitstream_reader_lib.?.addCSourceFiles(.{
+            .root = ctx.paths.llvm.lib.bitstream.reader.path,
+            .files = sources.llvm_bitstream_reader_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+
+        ctx.targets.llvm_bitstream_reader_lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        ctx.targets.llvm_bitstream_reader_lib.addIncludePath(ctx.paths.llvm.lib.bitcode.path);
+        ctx.targets.llvm_bitstream_reader_lib.addIncludePath(ctx.paths.llvm.lib.bitstream.path);
+        ctx.targets.llvm_bitstream_reader_lib.linkLibrary(ctx.targets.llvm_support_lib.?);
+    }
 }
 
 fn getLLVMNativeArch(arch: std.Target.Cpu.Arch) []const u8 {
