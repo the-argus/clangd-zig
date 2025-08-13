@@ -552,7 +552,15 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        Context.includeAll(lib, &.{tablegenerated_incs});
+        if (ctx.module_opts.target.?.result.os.tag == .solaris) {
+            lib.linkSystemLibrary("kstat");
+        }
+
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmLib("TargetParser/Unix"),
+            ctx.llvmLib("TargetParser/Windows"),
+        });
         Context.linkAll(lib, &.{llvm_support_lib});
         break :block lib;
     };
@@ -569,7 +577,10 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        Context.includeAll(lib, &.{tablegenerated_incs});
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmInc("BinaryFormat"),
+        });
         Context.linkAll(lib, &.{
             llvm_support_lib,
             llvm_target_parser_lib,
@@ -610,7 +621,10 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        Context.includeAll(lib, &.{tablegenerated_incs});
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmInc("Remarks"),
+        });
         Context.linkAll(lib, &.{
             llvm_support_lib,
             llvm_bitstream_reader_lib,
@@ -630,7 +644,11 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        Context.includeAll(lib, &.{tablegenerated_incs});
+        // TODO: link llvm pthread lib here
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmInc("IR"),
+        });
         Context.linkAll(lib, &.{
             llvm_binary_format_lib,
             llvm_demangle_lib,
@@ -656,13 +674,130 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         Context.includeAll(lib, &.{
             tablegenerated_incs,
             ctx.llvmLib("Bitcode"),
-            ctx.llvmLib("Bitstream"),
         });
         Context.linkAll(lib, &.{
             llvm_support_lib,
             llvm_core_lib,
             llvm_target_parser_lib,
             llvm_bitstream_reader_lib,
+        });
+        break :block lib;
+    };
+
+    const llvm_mc_lib = block: {
+        const lib = addLLVMLibrary(ctx, .{
+            .name = "llvmMC",
+            .root_module = ctx.makeModule(),
+        });
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("MC"),
+            .files = sources.llvm_mc_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmInc("MC"),
+        });
+        Context.linkAll(lib, &.{
+            llvm_support_lib,
+            llvm_target_parser_lib,
+            llvm_binary_format_lib,
+        });
+        break :block lib;
+    };
+
+    const llvm_asm_parser_lib = block: {
+        const lib = addLLVMLibrary(ctx, .{
+            .name = "llvmAsmParser",
+            .root_module = ctx.makeModule(),
+        });
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("AsmParser"),
+            .files = sources.llvm_asm_parser_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmInc("AsmParser"),
+        });
+        Context.linkAll(lib, &.{
+            llvm_core_lib,
+            llvm_support_lib,
+            llvm_binary_format_lib,
+        });
+        break :block lib;
+    };
+
+    const llvm_ir_reader_lib = block: {
+        const lib = addLLVMLibrary(ctx, .{
+            .name = "llvmIRReader",
+            .root_module = ctx.makeModule(),
+        });
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("IRReader"),
+            .files = sources.llvm_ir_reader_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmInc("IRReader"),
+        });
+        Context.linkAll(lib, &.{
+            llvm_asm_parser_lib,
+            llvm_bitcode_reader_lib,
+            llvm_core_lib,
+            llvm_support_lib,
+        });
+        break :block lib;
+    };
+
+    const llvm_mc_parser_lib = block: {
+        const lib = addLLVMLibrary(ctx, .{
+            .name = "llvmMCParser",
+            .root_module = ctx.makeModule(),
+        });
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("MC/MCParser"),
+            .files = sources.llvm_mc_parser_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmInc("MC/MCParser"),
+        });
+        Context.linkAll(lib, &.{
+            llvm_mc_lib,
+            llvm_support_lib,
+            llvm_target_parser_lib,
+        });
+        break :block lib;
+    };
+
+    const llvm_textapi_lib = block: {
+        const lib = addLLVMLibrary(ctx, .{
+            .name = "llvmTextAPI",
+            .root_module = ctx.makeModule(),
+        });
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("TextAPI"),
+            .files = sources.llvm_textapi_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+
+        Context.includeAll(lib, &.{ctx.llvmInc("TextAPI")});
+        Context.linkAll(lib, &.{
+            llvm_support_lib,
+            llvm_target_parser_lib,
+            llvm_binary_format_lib,
         });
         break :block lib;
     };
@@ -679,10 +814,21 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        Context.includeAll(lib, &.{tablegenerated_incs});
+        // TODO: llvm_vcsrevision_h
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmInc("Object"),
+        });
         Context.linkAll(lib, &.{
             llvm_core_lib,
             llvm_bitcode_reader_lib,
+            llvm_mc_lib,
+            llvm_ir_reader_lib,
+            llvm_mc_parser_lib,
+            llvm_textapi_lib,
+            llvm_binary_format_lib,
+            llvm_support_lib,
+            llvm_target_parser_lib,
         });
         break :block lib;
     };
@@ -719,10 +865,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        Context.includeAll(lib, &.{
-            tablegenerated_incs,
-            ctx.llvmInc("DebugInfo/CodeView"),
-        });
+        Context.includeAll(lib, &.{ctx.llvmInc("DebugInfo/CodeView")});
         Context.linkAll(lib, &.{llvm_support_lib});
         break :block lib;
     };
@@ -769,8 +912,8 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
 
         Context.includeAll(lib, &.{
-            tablegenerated_incs,
             ctx.llvmInc("DebugInfo/PDB"),
+            ctx.llvmInc("DebugInfo/PDB/Native"),
         });
         Context.linkAll(lib, &.{
             llvm_support_lib,
@@ -796,7 +939,6 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
 
         Context.includeAll(lib, &.{
-            tablegenerated_incs,
             ctx.llvmInc("DebugInfo/DWARF"),
             ctx.llvmInc("DebugInfo"),
         });
@@ -821,10 +963,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        Context.includeAll(lib, &.{
-            tablegenerated_incs,
-            ctx.llvmLib("DebugInfo/Symbolize"),
-        });
+        Context.includeAll(lib, &.{ctx.llvmLib("DebugInfo/Symbolize")});
         Context.linkAll(lib, &.{
             llvm_debug_info_dwarf_lib,
             llvm_debug_info_pdb_lib,
@@ -849,7 +988,10 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        Context.includeAll(lib, &.{tablegenerated_incs});
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmInc("ProfileData"),
+        });
         Context.linkAll(lib, &.{
             llvm_bitstream_reader_lib,
             llvm_core_lib,
@@ -875,7 +1017,10 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        Context.includeAll(lib, &.{tablegenerated_incs});
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmInc("Analysis"),
+        });
         Context.linkAll(lib, &.{
             llvm_binary_format_lib,
             llvm_core_lib,
@@ -913,6 +1058,136 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         break :block lib;
     };
 
+    const llvm_frontend_atomic_lib = block: {
+        const lib = addLLVMLibrary(ctx, .{
+            .name = "llvmFrontendAtomic",
+            .root_module = ctx.makeModule(),
+        });
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("Frontend/Atomic"),
+            .files = sources.llvm_frontend_atomic_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+
+        lib.step.dependOn(&llvm_analysis_lib.step);
+        lib.step.dependOn(&llvm_target_parser_lib.step);
+        Context.includeAll(lib, &.{ctx.llvmInc("Frontend/Atomic")});
+        Context.linkAll(lib, &.{
+            llvm_core_lib,
+            llvm_support_lib,
+            llvm_analysis_lib,
+        });
+        break :block lib;
+    };
+
+    const llvm_frontend_offloading_lib = block: {
+        const lib = addLLVMLibrary(ctx, .{
+            .name = "llvmFrontendOffloading",
+            .root_module = ctx.makeModule(),
+        });
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("Frontend/Offloading"),
+            .files = sources.llvm_frontend_offloading_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmInc("Frontend"),
+        });
+        Context.linkAll(lib, &.{
+            llvm_core_lib,
+            llvm_binary_format_lib,
+            llvm_object_lib,
+            llvm_support_lib,
+            llvm_transforms_utils_lib,
+            llvm_target_parser_lib,
+        });
+        break :block lib;
+    };
+
+    const llvm_transforms_aggressive_inst_combine_lib = block: {
+        const lib = addLLVMLibrary(ctx, .{
+            .name = "llvmTransformsAggressiveInstCombine",
+            .root_module = ctx.makeModule(),
+        });
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("Transforms/AggressiveInstCombine"),
+            .files = sources.llvm_transforms_aggressive_inst_combine_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmInc("Transforms"),
+            ctx.llvmInc("Transforms/AggressiveInstCombine"),
+        });
+        Context.linkAll(lib, &.{
+            llvm_analysis_lib,
+            llvm_core_lib,
+            llvm_support_lib,
+            llvm_transforms_utils_lib,
+        });
+        break :block lib;
+    };
+
+    const llvm_transforms_inst_combine_lib = block: {
+        const lib = addLLVMLibrary(ctx, .{
+            .name = "llvmTransformsInstCombine",
+            .root_module = ctx.makeModule(),
+        });
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("Transforms/InstCombine"),
+            .files = sources.llvm_transforms_inst_combine_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmInc("Transforms"),
+            ctx.llvmInc("Transforms/InstCombine"),
+        });
+        Context.linkAll(lib, &.{
+            llvm_analysis_lib,
+            llvm_core_lib,
+            llvm_support_lib,
+            llvm_transforms_utils_lib,
+        });
+        break :block lib;
+    };
+
+    const llvm_transforms_scalar_lib = block: {
+        const lib = addLLVMLibrary(ctx, .{
+            .name = "llvmTransformsScalar",
+            .root_module = ctx.makeModule(),
+        });
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("Transforms/Scalar"),
+            .files = sources.llvm_transforms_scalar_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmInc("Transforms"),
+            ctx.llvmInc("Transforms/Scalar"),
+        });
+        Context.linkAll(lib, &.{
+            llvm_transforms_aggressive_inst_combine_lib,
+            llvm_analysis_lib,
+            llvm_core_lib,
+            llvm_transforms_inst_combine_lib,
+            llvm_support_lib,
+            llvm_transforms_utils_lib,
+        });
+        break :block lib;
+    };
+
     const llvm_frontend_openmp_lib = block: {
         const lib = addLLVMLibrary(ctx, .{
             .name = "llvmFrontendOpenMP",
@@ -927,6 +1202,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
 
         Context.includeAll(lib, &.{
             tablegenerated_incs,
+            // TODO: omp_gen generated headers
             ctx.llvmInc("Frontend"),
             ctx.llvmInc("Frontend/OpenMP"),
         });
@@ -937,6 +1213,11 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             llvm_transforms_utils_lib,
             llvm_analysis_lib,
             llvm_demangle_lib,
+            llvm_mc_lib,
+            llvm_bitcode_reader_lib,
+            llvm_transforms_scalar_lib,
+            llvm_frontend_atomic_lib,
+            llvm_frontend_offloading_lib,
         });
         break :block lib;
     };
