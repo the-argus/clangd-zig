@@ -532,11 +532,11 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        Context.includeAll(lib, .{
+        Context.includeAll(lib, &.{
             tablegenerated_incs,
             ctx.llvmInc("Option"),
         });
-        Context.linkAll(lib, .{llvm_support_lib});
+        Context.linkAll(lib, &.{llvm_support_lib});
         break :block lib;
     };
 
