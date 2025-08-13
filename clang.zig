@@ -211,7 +211,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             clang_tablegenerated_incs,
             llvm.tablegenerated_incs,
         });
-        lib.linkLibrary(clang_basic_lib);
+        Context.linkAll(lib, &.{clang_basic_lib});
         break :block lib;
     };
 
@@ -230,7 +230,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             clang_tablegenerated_incs,
             llvm.tablegenerated_incs,
         });
-        lib.linkLibrary(clang_basic_lib);
+        Context.linkAll(lib, &.{clang_basic_lib});
         break :block lib;
     };
 
@@ -250,8 +250,10 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             clang_phase2_tablegenerated_incs,
             llvm.tablegenerated_incs,
         });
-        lib.linkLibrary(clang_basic_lib);
-        lib.linkLibrary(clang_lex_lib);
+        Context.linkAll(lib, &.{
+            clang_basic_lib,
+            clang_lex_lib,
+        });
         break :block lib;
     };
 
@@ -270,7 +272,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             clang_tablegenerated_incs,
             llvm.tablegenerated_incs,
         });
-        lib.linkLibrary(clang_ast_lib);
+        Context.linkAll(lib, &.{clang_ast_lib});
         break :block lib;
     };
 
@@ -289,9 +291,11 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             clang_tablegenerated_incs,
             llvm.tablegenerated_incs,
         });
-        lib.linkLibrary(clang_basic_lib);
-        lib.linkLibrary(clang_ast_lib);
-        lib.linkLibrary(clang_lex_lib);
+        Context.linkAll(lib, &.{
+            clang_ast_lib,
+            clang_basic_lib,
+            clang_lex_lib,
+        });
         break :block lib;
     };
 
@@ -301,7 +305,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         lib.addCSourceFiles(.{
-            .root = ctx.paths.clang.lib.ast_matchers.path,
+            .root = ctx.srcPath("clang/lib/AstMatchers"),
             .files = sources.clang_ast_matchers_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
@@ -310,9 +314,11 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             clang_tablegenerated_incs,
             llvm.tablegenerated_incs,
         });
-        lib.linkLibrary(clang_ast_lib);
-        lib.linkLibrary(clang_basic_lib);
-        lib.linkLibrary(clang_lex_lib);
+        Context.linkAll(lib, &.{
+            clang_ast_lib,
+            clang_basic_lib,
+            clang_lex_lib,
+        });
         break :block lib;
     };
 
@@ -331,10 +337,12 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             clang_tablegenerated_incs,
             llvm.tablegenerated_incs,
         });
-        lib.linkLibrary(clang_ast_lib);
-        lib.linkLibrary(clang_ast_matchers_lib);
-        lib.linkLibrary(clang_basic_lib);
-        lib.linkLibrary(clang_lex_lib);
+        Context.linkAll(lib, &.{
+            clang_ast_lib,
+            clang_ast_matchers_lib,
+            clang_basic_lib,
+            clang_lex_lib,
+        });
         break :block lib;
     };
 
@@ -354,13 +362,15 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             clang_phase2_tablegenerated_incs,
             llvm.tablegenerated_incs,
         });
-        lib.linkLibrary(clang_api_notes_lib);
-        lib.linkLibrary(clang_ast_lib);
-        lib.linkLibrary(clang_analysis_lib);
-        lib.linkLibrary(clang_basic_lib);
-        lib.linkLibrary(clang_edit_lib);
-        lib.linkLibrary(clang_lex_lib);
-        lib.linkLibrary(clang_support_lib);
+        Context.linkAll(lib, &.{
+            clang_api_notes_lib,
+            clang_ast_lib,
+            clang_analysis_lib,
+            clang_basic_lib,
+            clang_edit_lib,
+            clang_lex_lib,
+            clang_support_lib,
+        });
         break :block lib;
     };
 
@@ -380,10 +390,12 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             clang_phase2_tablegenerated_incs,
             llvm.tablegenerated_incs,
         });
-        lib.linkLibrary(clang_basic_lib);
-        lib.linkLibrary(clang_ast_lib);
-        lib.linkLibrary(clang_lex_lib);
-        lib.linkLibrary(clang_sema_lib);
+        Context.linkAll(lib, &.{
+            clang_basic_lib,
+            clang_ast_lib,
+            clang_lex_lib,
+            clang_sema_lib,
+        });
         break :block lib;
     };
 
@@ -403,10 +415,12 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             clang_phase2_tablegenerated_incs,
             llvm.tablegenerated_incs,
         });
-        lib.linkLibrary(clang_basic_lib);
-        lib.linkLibrary(clang_ast_lib);
-        lib.linkLibrary(clang_lex_lib);
-        lib.linkLibrary(clang_sema_lib);
+        Context.linkAll(lib, &.{
+            clang_basic_lib,
+            clang_ast_lib,
+            clang_lex_lib,
+            clang_sema_lib,
+        });
         break :block lib;
     };
 
@@ -427,7 +441,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             llvm.tablegenerated_incs,
             ctx.paths.clang.lib.driver.path,
         });
-        lib.linkLibrary(clang_basic_lib);
+        Context.linkAll(lib, &.{clang_basic_lib});
         break :block lib;
     };
 
@@ -447,16 +461,17 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             clang_phase2_tablegenerated_incs,
             llvm.tablegenerated_incs,
         });
-
-        lib.linkLibrary(clang_api_notes_lib);
-        lib.linkLibrary(clang_ast_lib);
-        lib.linkLibrary(clang_basic_lib);
-        lib.linkLibrary(clang_driver_lib);
-        lib.linkLibrary(clang_edit_lib);
-        lib.linkLibrary(clang_lex_lib);
-        lib.linkLibrary(clang_parse_lib);
-        lib.linkLibrary(clang_sema_lib);
-        lib.linkLibrary(clang_serialization_lib);
+        Context.linkAll(lib, &.{
+            clang_api_notes_lib,
+            clang_ast_lib,
+            clang_basic_lib,
+            clang_driver_lib,
+            clang_edit_lib,
+            clang_lex_lib,
+            clang_parse_lib,
+            clang_sema_lib,
+            clang_serialization_lib,
+        });
         break :block lib;
     };
 
@@ -475,8 +490,10 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             clang_tablegenerated_incs,
             llvm.tablegenerated_incs,
         });
-        lib.linkLibrary(clang_basic_lib);
-        lib.linkLibrary(clang_lex_lib);
+        Context.linkAll(lib, &.{
+            clang_basic_lib,
+            clang_lex_lib,
+        });
         break :block lib;
     };
 
@@ -495,9 +512,11 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             clang_tablegenerated_incs,
             llvm.tablegenerated_incs,
         });
-        lib.linkLibrary(clang_basic_lib);
-        lib.linkLibrary(clang_lex_lib);
-        lib.linkLibrary(clang_rewrite_lib);
+        Context.linkAll(lib, &.{
+            clang_basic_lib,
+            clang_lex_lib,
+            clang_rewrite_lib,
+        });
         break :block lib;
     };
 
@@ -516,9 +535,11 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             clang_tablegenerated_incs,
             llvm.tablegenerated_incs,
         });
-        lib.linkLibrary(clang_basic_lib);
-        lib.linkLibrary(clang_lex_lib);
-        lib.linkLibrary(clang_tooling_core_lib);
+        Context.linkAll(lib, &.{
+            clang_basic_lib,
+            clang_lex_lib,
+            clang_tooling_core_lib,
+        });
         break :block lib;
     };
 
@@ -537,10 +558,12 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             clang_tablegenerated_incs,
             llvm.tablegenerated_incs,
         });
-        lib.linkLibrary(clang_basic_lib);
-        lib.linkLibrary(clang_lex_lib);
-        lib.linkLibrary(clang_tooling_core_lib);
-        lib.linkLibrary(clang_tooling_inclusions_lib);
+        Context.linkAll(lib, &.{
+            clang_basic_lib,
+            clang_lex_lib,
+            clang_tooling_core_lib,
+            clang_tooling_inclusions_lib,
+        });
         break :block lib;
     };
 
@@ -560,13 +583,15 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             clang_phase2_tablegenerated_incs,
             llvm.tablegenerated_incs,
         });
-        lib.linkLibrary(clang_ast_lib);
-        lib.linkLibrary(clang_basic_lib);
-        lib.linkLibrary(clang_format_lib);
-        lib.linkLibrary(clang_frontend_lib);
-        lib.linkLibrary(clang_lex_lib);
-        lib.linkLibrary(clang_serialization_lib);
-        lib.linkLibrary(clang_tooling_core_lib);
+        Context.linkAll(lib, &.{
+            clang_ast_lib,
+            clang_basic_lib,
+            clang_format_lib,
+            clang_frontend_lib,
+            clang_lex_lib,
+            clang_serialization_lib,
+            clang_tooling_core_lib,
+        });
         break :block lib;
     };
 
@@ -586,11 +611,13 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             clang_phase2_tablegenerated_incs,
             llvm.tablegenerated_incs,
         });
-        lib.linkLibrary(clang_ast_lib);
-        lib.linkLibrary(clang_basic_lib);
-        lib.linkLibrary(clang_frontend_lib);
-        lib.linkLibrary(clang_lex_lib);
-        lib.linkLibrary(clang_tooling_core_lib);
+        Context.linkAll(lib, &.{
+            clang_ast_lib,
+            clang_basic_lib,
+            clang_frontend_lib,
+            clang_lex_lib,
+            clang_tooling_core_lib,
+        });
         break :block lib;
     };
 
@@ -638,16 +665,20 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
-        lib.addIncludePath(clang_tablegenerated_incs);
-        lib.addIncludePath(clang_phase2_tablegenerated_incs);
-        lib.addIncludePath(llvm.tablegenerated_incs);
-        lib.linkLibrary(clang_ast_lib);
-        lib.linkLibrary(clang_basic_lib);
-        lib.linkLibrary(clang_driver_lib);
-        lib.linkLibrary(clang_frontend_lib);
-        lib.linkLibrary(clang_lex_lib);
-        lib.linkLibrary(clang_serialization_lib);
-        lib.linkLibrary(clang_tooling_lib);
+        Context.includeAll(lib, &.{
+            clang_tablegenerated_incs,
+            clang_phase2_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+        });
+        Context.linkAll(lib, &.{
+            clang_ast_lib,
+            clang_basic_lib,
+            clang_driver_lib,
+            clang_frontend_lib,
+            clang_lex_lib,
+            clang_serialization_lib,
+            clang_tooling_lib,
+        });
         break :block lib;
     };
 
