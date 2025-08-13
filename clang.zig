@@ -38,7 +38,7 @@ fn compileSupportLib(ctx: *const Context, module: *std.Build.Module) *Compile {
         .root_module = module,
     });
     out.addCSourceFiles(.{
-        .root = ctx.paths.clang.lib.support.path,
+        .root = ctx.srcPath("clang/lib/Support"),
         .files = sources.clang_support_lib_cpp_files,
         .flags = ctx.dupeGlobalFlags(),
         .language = .cpp,
@@ -158,7 +158,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     });
     clang_host_component_tblgen_exe.addCSourceFiles(.{
         .files = sources.clang_tablegen_cpp_files,
-        .root = ctx.paths.clang.utils.tablegen.path,
+        .root = ctx.clangUtil("TableGen"),
         .flags = ctx.dupeGlobalFlags(),
         .language = .cpp,
     });
@@ -183,13 +183,13 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         lib.addCSourceFiles(.{
-            .root = ctx.srcPath("clang/lib/Basic"),
+            .root = ctx.clangLib("Basic"),
             .files = sources.clang_basic_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
         Context.includeAll(lib, &.{
-            ctx.srcPath("clang/lib/Basic"),
+            ctx.clangLib("Basic"),
             clang_tablegenerated_incs,
             llvm.tablegenerated_incs,
         });
@@ -202,7 +202,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         lib.addCSourceFiles(.{
-            .root = ctx.srcPath("clang/lib/APINotes"),
+            .root = ctx.clangLib("APINotes"),
             .files = sources.clang_api_notes_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
@@ -221,7 +221,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         lib.addCSourceFiles(.{
-            .root = ctx.srcPath("clang/lib/Lex"),
+            .root = ctx.clangLib("Lex"),
             .files = sources.clang_lex_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
@@ -240,7 +240,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         lib.addCSourceFiles(.{
-            .root = ctx.srcPath("clang/lib/AST"),
+            .root = ctx.clangLib("AST"),
             .files = sources.clang_ast_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
@@ -263,7 +263,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         lib.addCSourceFiles(.{
-            .root = ctx.srcPath("clang/lib/Tooling/Inclusions/StdLib"),
+            .root = ctx.clangLib("Tooling/Inclusions/StdLib"),
             .files = sources.clang_tooling_inclusions_stdlib_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
@@ -282,7 +282,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         lib.addCSourceFiles(.{
-            .root = ctx.paths.clang.lib.edit.path,
+            .root = ctx.clangLib("Edit"),
             .files = sources.clang_edit_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
@@ -305,7 +305,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         lib.addCSourceFiles(.{
-            .root = ctx.srcPath("clang/lib/AstMatchers"),
+            .root = ctx.clangLib("AstMatchers"),
             .files = sources.clang_ast_matchers_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
@@ -328,7 +328,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         lib.addCSourceFiles(.{
-            .root = ctx.paths.clang.lib.analysis.path,
+            .root = ctx.clangLib("Analysis"),
             .files = sources.clang_analysis_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
@@ -352,7 +352,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         lib.addCSourceFiles(.{
-            .root = ctx.paths.clang.lib.sema.path,
+            .root = ctx.clangLib("Sema"),
             .files = sources.clang_sema_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
@@ -380,7 +380,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         lib.addCSourceFiles(.{
-            .root = ctx.paths.clang.lib.serialization.path,
+            .root = ctx.clangLib("Serialization"),
             .files = sources.clang_serialization_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
@@ -405,7 +405,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         lib.addCSourceFiles(.{
-            .root = ctx.paths.clang.lib.parse.path,
+            .root = ctx.clangLib("Parse"),
             .files = sources.clang_parse_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
@@ -430,7 +430,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         lib.addCSourceFiles(.{
-            .root = ctx.paths.clang.lib.driver.path,
+            .root = ctx.clangLib("Driver"),
             .files = sources.clang_driver_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
@@ -439,7 +439,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             clang_tablegenerated_incs,
             clang_phase2_tablegenerated_incs,
             llvm.tablegenerated_incs,
-            ctx.paths.clang.lib.driver.path,
+            ctx.clangLib("Driver"),
         });
         Context.linkAll(lib, &.{clang_basic_lib});
         break :block lib;
@@ -451,7 +451,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         lib.addCSourceFiles(.{
-            .root = ctx.paths.clang.lib.frontend.path,
+            .root = ctx.clangLib("Frontend"),
             .files = sources.clang_frontend_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
@@ -481,7 +481,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         lib.addCSourceFiles(.{
-            .root = ctx.paths.clang.lib.rewrite.path,
+            .root = ctx.clangLib("Rewrite"),
             .files = sources.clang_rewrite_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
@@ -503,7 +503,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         lib.addCSourceFiles(.{
-            .root = ctx.paths.clang.lib.tooling.core.path,
+            .root = ctx.clangLib("Tooling/Core"),
             .files = sources.clang_tooling_core_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
@@ -526,7 +526,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         lib.addCSourceFiles(.{
-            .root = ctx.paths.clang.lib.tooling.inclusions.path,
+            .root = ctx.clangLib("Tooling/Inclusions"),
             .files = sources.clang_tooling_inclusions_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
@@ -549,7 +549,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         lib.addCSourceFiles(.{
-            .root = ctx.paths.clang.lib.format.path,
+            .root = ctx.clangLib("Format"),
             .files = sources.clang_format_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
@@ -573,7 +573,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         lib.addCSourceFiles(.{
-            .root = ctx.paths.clang.lib.index.path,
+            .root = ctx.clangLib("Index"),
             .files = sources.clang_index_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
@@ -601,7 +601,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         lib.addCSourceFiles(.{
-            .root = ctx.paths.clang.lib.tooling.syntax.path,
+            .root = ctx.clangLib("Tooling/Syntax"),
             .files = sources.clang_tooling_syntax_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
@@ -627,7 +627,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         lib.addCSourceFiles(.{
-            .root = ctx.paths.clang.lib.tooling.path,
+            .root = ctx.clangLib("Tooling"),
             .files = sources.clang_tooling_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
@@ -660,7 +660,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         lib.addCSourceFiles(.{
-            .root = ctx.paths.clang.lib.tooling.dependency_scanning.path,
+            .root = ctx.clangLib("Tooling/DependencyScanning"),
             .files = sources.clang_tooling_dependency_scanning_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,

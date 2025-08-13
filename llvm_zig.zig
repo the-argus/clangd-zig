@@ -974,19 +974,19 @@ fn buildSupport(
     support_lib.addCSourceFiles(.{
         .language = .cpp,
         .files = sources.llvm_support_lib_cpp_files,
-        .root = ctx.paths.llvm.lib.support.path,
+        .root = ctx.llvmLib("Support"),
         .flags = flags.toOwnedSlice() catch @panic("OOM"),
     });
     support_lib.addCSourceFiles(.{
         .language = .c,
         .files = sources.llvm_support_lib_c_files,
-        .root = ctx.paths.llvm.lib.support.path,
+        .root = ctx.llvmLib("Support"),
         .flags = flags.toOwnedSlice() catch @panic("OOM"),
     });
-    support_lib.addIncludePath(ctx.paths.llvm.include.llvm.support.path);
-    support_lib.addIncludePath(ctx.paths.llvm.include.llvm.adt.path);
-    support_lib.addIncludePath(ctx.paths.llvm.lib.support.windows.path);
-    support_lib.addIncludePath(ctx.paths.llvm.lib.support.unix.path);
+    support_lib.addIncludePath(ctx.llvmInc("Support"));
+    support_lib.addIncludePath(ctx.llvmInc("ADT"));
+    support_lib.addIncludePath(ctx.llvmLib("Support/Windows"));
+    support_lib.addIncludePath(ctx.llvmLib("Support/Unix"));
 
     if (ctx.targets.zlib) |zlib| {
         support_lib.linkLibrary(zlib);
