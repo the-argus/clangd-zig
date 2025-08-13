@@ -5,13 +5,13 @@ const std = @import("std");
 
 const Context = @import("build.zig").Context;
 
-pub fn build(ctx: *Context, target: std.Build.ResolvedTarget) *std.Build.Step.Compile {
+pub fn build(
+    ctx: *Context,
+    module_options: std.Build.Module.CreateOptions,
+) *std.Build.Step.Compile {
     const support_lib = ctx.addLLVMLibrary(.{
         .name = "support",
-        .root_module = ctx.b.createModule(.{
-            .target = target,
-            .optimize = ctx.module_opts.optimize,
-        }),
+        .root_module = ctx.b.createModule(module_options),
         .linkage = .static,
     });
 
@@ -68,7 +68,6 @@ pub fn build(ctx: *Context, target: std.Build.ResolvedTarget) *std.Build.Step.Co
     support_lib.addIncludePath(ctx.paths.llvm.include.llvm.adt.path);
     support_lib.addIncludePath(ctx.paths.llvm.lib.support.windows.path);
     support_lib.addIncludePath(ctx.paths.llvm.lib.support.unix.path);
-    support_lib.linkLibrary(ctx.targets.llvm_host_component_demangle_lib.?);
 
     if (ctx.targets.zlib) |zlib| {
         support_lib.linkLibrary(zlib);

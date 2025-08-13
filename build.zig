@@ -200,19 +200,38 @@ pub const Paths = struct {
                 },
                 frontend: struct {
                     path: LazyPath,
-                    openmp: struct {
+                    openmp: struct { path: LazyPath },
+                },
+                support: struct { path: LazyPath },
+                tablegen: struct { path: LazyPath },
+                adt: struct { path: LazyPath },
+                target_parser: struct { path: LazyPath },
+                demangle: struct { path: LazyPath },
+                binary_format: struct { path: LazyPath },
+                debug_info: struct {
+                    path: LazyPath,
+                    btf: struct { path: LazyPath },
+                    codeview: struct { path: LazyPath },
+                    dwarf: struct { path: LazyPath },
+                    msf: struct { path: LazyPath },
+                    pdb: struct {
+                        native: struct { path: LazyPath },
                         path: LazyPath,
                     },
+                    symbolize: struct { path: LazyPath },
                 },
-                support: struct {
+                profile_data: struct { path: LazyPath },
+                option: struct { path: LazyPath },
+                transform: struct {
                     path: LazyPath,
+                    utils: struct { path: LazyPath },
                 },
-                tablegen: struct {
-                    path: LazyPath,
-                },
-                adt: struct {
-                    path: LazyPath,
-                },
+                remarks: struct { path: LazyPath },
+                ir: struct { path: LazyPath }, // AKA Core
+                object: struct { path: LazyPath },
+                analysis: struct { path: LazyPath },
+                bitcode: struct { path: LazyPath },
+                bitstream: struct { path: LazyPath },
             },
         },
 
@@ -225,6 +244,20 @@ pub const Paths = struct {
                 windows: struct { path: LazyPath },
             },
             demangle: struct { path: LazyPath },
+            binary_format: struct { path: LazyPath },
+            debug_info: struct {
+                path: LazyPath,
+                btf: struct { path: LazyPath },
+                codeview: struct { path: LazyPath },
+                dwarf: struct { path: LazyPath },
+                msf: struct { path: LazyPath },
+                pdb: struct {
+                    native: struct { path: LazyPath },
+                    path: LazyPath,
+                },
+                symbolize: struct { path: LazyPath },
+            },
+            profile_data: struct { path: LazyPath },
             tablegen: struct { path: LazyPath },
             option: struct { path: LazyPath },
             transform: struct { utils: struct { path: LazyPath } },
@@ -392,19 +425,38 @@ pub const Paths = struct {
                         },
                         .frontend = .{
                             .path = root.path(b, "llvm/include/llvm/Frontend"),
-                            .openmp = .{
-                                .path = root.path(b, "llvm/include/llvm/Frontend/OpenMP"),
+                            .openmp = .{ .path = root.path(b, "llvm/include/llvm/Frontend/OpenMP") },
+                        },
+                        .support = .{ .path = root.path(b, "llvm/include/llvm/Support") },
+                        .tablegen = .{ .path = root.path(b, "llvm/include/llvm/TableGen") },
+                        .adt = .{ .path = root.path(b, "llvm/include/llvm/ADT") },
+                        .target_parser = .{ .path = root.path(b, "llvm/include/llvm/TargetParser") },
+                        .demangle = .{ .path = root.path(b, "llvm/include/llvm/Demangle") },
+                        .binary_format = .{ .path = root.path(b, "llvm/include/llvm/BinaryFormat") },
+                        .debug_info = .{
+                            .path = root.path(b, "llvm/include/llvm/DebugInfo"),
+                            .btf = .{ .path = root.path(b, "llvm/include/llvm/DebugInfo/BTF") },
+                            .codeview = .{ .path = root.path(b, "llvm/include/llvm/DebugInfo/CodeView") },
+                            .dwarf = .{ .path = root.path(b, "llvm/include/llvm/DebugInfo/DWARF") },
+                            .msf = .{ .path = root.path(b, "llvm/include/llvm/DebugInfo/MSF") },
+                            .pdb = .{
+                                .path = root.path(b, "llvm/include/llvm/DebugInfo/PDB"),
+                                .native = .{ .path = root.path(b, "llvm/include/llvm/DebugInfo/PDB/Native") },
                             },
+                            .symbolize = .{ .path = root.path(b, "llvm/include/llvm/DebugInfo/Symbolize") },
                         },
-                        .support = .{
-                            .path = root.path(b, "llvm/include/llvm/Support"),
+                        .profile_data = .{ .path = root.path(b, "llvm/include/llvm/ProfileData") },
+                        .option = .{ .path = root.path(b, "llvm/include/llvm/Option") },
+                        .transform = .{
+                            .path = root.path(b, "llvm/include/llvm/Transform"),
+                            .utils = .{ .path = root.path(b, "llvm/include/llvm/Transform") },
                         },
-                        .tablegen = .{
-                            .path = root.path(b, "llvm/include/llvm/TableGen"),
-                        },
-                        .adt = .{
-                            .path = root.path(b, "llvm/include/llvm/ADT"),
-                        },
+                        .remarks = .{ .path = root.path(b, "llvm/include/llvm/Remarks") },
+                        .ir = .{ .path = root.path(b, "llvm/include/llvm/IR") },
+                        .object = .{ .path = root.path(b, "llvm/include/llvm/Object") },
+                        .analysis = .{ .path = root.path(b, "llvm/include/llvm/Analysis") },
+                        .bitcode = .{ .path = root.path(b, "llvm/include/llvm/Bitcode") },
+                        .bitstream = .{ .path = root.path(b, "llvm/include/llvm/Bitstream") },
                     },
                 },
                 .lib = .{
@@ -416,6 +468,20 @@ pub const Paths = struct {
                         .windows = .{ .path = root.path(b, "llvm/lib/TargetParser/Windows") },
                     },
                     .demangle = .{ .path = root.path(b, "llvm/lib/Demangle") },
+                    .binary_format = .{ .path = root.path(b, "llvm/lib/BinaryFormat") },
+                    .debug_info = .{
+                        .path = root.path(b, "llvm/lib/DebugInfo"),
+                        .btf = .{ .path = root.path(b, "llvm/lib/DebugInfo/BTF") },
+                        .codeview = .{ .path = root.path(b, "llvm/lib/DebugInfo/CodeView") },
+                        .dwarf = .{ .path = root.path(b, "llvm/lib/DebugInfo/DWARF") },
+                        .msf = .{ .path = root.path(b, "llvm/lib/DebugInfo/MSF") },
+                        .pdb = .{
+                            .path = root.path(b, "llvm/lib/DebugInfo/PDB"),
+                            .native = .{ .path = root.path(b, "llvm/lib/DebugInfo/PDB/Native") },
+                        },
+                        .symbolize = .{ .path = root.path(b, "llvm/lib/DebugInfo/Symbolize") },
+                    },
+                    .profile_data = .{ .path = root.path(b, "llvm/lib/ProfileData") },
                     .tablegen = .{ .path = root.path(b, "llvm/lib/TableGen") },
                     .support = .{
                         .path = root.path(b, "llvm/lib/Support"),
@@ -494,10 +560,12 @@ pub const Targets = struct {
     llvm_host_component_tblgen_min_exe: ?*Compile = null, // for bootstrapping
 
     llvm_support_lib: ?*Compile = null,
+    llvm_demangle_lib: ?*Compile = null,
     llvm_all_targets_infos_lib: ?*Compile = null,
     llvm_frontend_openmp_lib: ?*Compile = null,
     llvm_option_lib: ?*Compile = null,
     llvm_target_parser_lib: ?*Compile = null,
+    llvm_binary_format_lib: ?*Compile = null,
     llvm_remarks_lib: ?*Compile = null,
     llvm_object_lib: ?*Compile = null,
     llvm_core_lib: ?*Compile = null,
@@ -505,6 +573,14 @@ pub const Targets = struct {
     llvm_bitcode_reader_lib: ?*Compile = null,
     llvm_bitcode_writer_lib: ?*Compile = null,
     llvm_bitstream_reader_lib: ?*Compile = null,
+    llvm_transforms_utils_lib: ?*Compile = null,
+    llvm_debug_info_btf_lib: ?*Compile = null,
+    llvm_debug_info_codeview_lib: ?*Compile = null,
+    llvm_debug_info_dwarf_lib: ?*Compile = null,
+    llvm_debug_info_msf_lib: ?*Compile = null,
+    llvm_debug_info_pdb_lib: ?*Compile = null,
+    llvm_debug_info_symbolize_lib: ?*Compile = null,
+    llvm_profile_data_lib: ?*Compile = null,
 
     clang_host_component_tblgen_exe: ?*Compile = null,
     clang_host_component_support_lib: ?*Compile = null,
@@ -1027,6 +1103,10 @@ pub fn build(b: *std.Build) !void {
 
     // bring in llvm
     ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.llvm_support_lib.?);
+    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.llvm_frontend_openmp_lib.?);
+    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.llvm_option_lib.?);
+    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.llvm_target_parser_lib.?);
+    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.llvm_all_targets_infos_lib.?);
 
     // libs to build and link
     // ${LLVM_PTHREAD_LIB}
