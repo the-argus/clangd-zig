@@ -559,28 +559,31 @@ pub const Targets = struct {
     llvm_host_component_tblgen_exe: ?*Compile = null,
     llvm_host_component_tblgen_min_exe: ?*Compile = null, // for bootstrapping
 
-    llvm_support_lib: ?*Compile = null,
-    llvm_demangle_lib: ?*Compile = null,
-    llvm_all_targets_infos_lib: ?*Compile = null,
-    llvm_frontend_openmp_lib: ?*Compile = null,
-    llvm_option_lib: ?*Compile = null,
-    llvm_target_parser_lib: ?*Compile = null,
-    llvm_binary_format_lib: ?*Compile = null,
-    llvm_remarks_lib: ?*Compile = null,
-    llvm_object_lib: ?*Compile = null,
-    llvm_core_lib: ?*Compile = null,
-    llvm_analysis_lib: ?*Compile = null,
-    llvm_bitcode_reader_lib: ?*Compile = null,
-    llvm_bitcode_writer_lib: ?*Compile = null,
-    llvm_bitstream_reader_lib: ?*Compile = null,
-    llvm_transforms_utils_lib: ?*Compile = null,
-    llvm_debug_info_btf_lib: ?*Compile = null,
-    llvm_debug_info_codeview_lib: ?*Compile = null,
-    llvm_debug_info_dwarf_lib: ?*Compile = null,
-    llvm_debug_info_msf_lib: ?*Compile = null,
-    llvm_debug_info_pdb_lib: ?*Compile = null,
-    llvm_debug_info_symbolize_lib: ?*Compile = null,
-    llvm_profile_data_lib: ?*Compile = null,
+    llvm_libs: ?struct {
+        support_lib: *Compile,
+        frontend_openmp_lib: *Compile,
+        option_lib: *Compile,
+        target_parser_lib: *Compile,
+        all_targets_infos_lib: *Compile,
+    } = null,
+
+    // llvm_demangle_lib: ?*Compile = null,
+    // llvm_binary_format_lib: ?*Compile = null,
+    // llvm_remarks_lib: ?*Compile = null,
+    // llvm_object_lib: ?*Compile = null,
+    // llvm_core_lib: ?*Compile = null,
+    // llvm_analysis_lib: ?*Compile = null,
+    // llvm_bitcode_reader_lib: ?*Compile = null,
+    // llvm_bitcode_writer_lib: ?*Compile = null,
+    // llvm_bitstream_reader_lib: ?*Compile = null,
+    // llvm_transforms_utils_lib: ?*Compile = null,
+    // llvm_debug_info_btf_lib: ?*Compile = null,
+    // llvm_debug_info_codeview_lib: ?*Compile = null,
+    // llvm_debug_info_dwarf_lib: ?*Compile = null,
+    // llvm_debug_info_msf_lib: ?*Compile = null,
+    // llvm_debug_info_pdb_lib: ?*Compile = null,
+    // llvm_debug_info_symbolize_lib: ?*Compile = null,
+    // llvm_profile_data_lib: ?*Compile = null,
 
     clang_host_component_tblgen_exe: ?*Compile = null,
     clang_host_component_support_lib: ?*Compile = null,
@@ -620,6 +623,7 @@ pub const Targets = struct {
 
 pub const Context = struct {
     b: *std.Build,
+    src_root: LazyPath,
     module_opts: std.Build.Module.CreateOptions,
     targets: Targets,
     paths: *const Paths,
@@ -648,6 +652,7 @@ pub const Context = struct {
         allocated_opts.* = opts;
         out.* = .{
             .b = b,
+            .src_root = llvm_source_root,
             .module_opts = module_opts,
             .targets = .{},
             .paths = Paths.new(b, llvm_source_root),
@@ -677,8 +682,24 @@ pub const Context = struct {
         return out;
     }
 
+    pub fn srcPath(ctx: @This(), relative: []const u8) LazyPath {
+        return ctx.src_root.path(ctx.b, relative);
+    }
+
+    pub fn llvmInc(ctx: @This(), relative: []const u8) LazyPath {
+        return ctx.src_root.path(ctx.b, "llvm/include/llvm").path(ctx.b, relative);
+    }
+
+    pub fn llvmLib(ctx: @This(), relative: []const u8) LazyPath {
+        return ctx.src_root.path(ctx.b, "llvm/lib").path(ctx.b, relative);
+    }
+
+    pub fn llvmUtil(ctx: @This(), relative: []const u8) LazyPath {
+        return ctx.src_root.path(ctx.b, "llvm/utils").path(ctx.b, relative);
+    }
+
     fn addLLVMIncludesAndLinks(ctx: @This(), c: *Compile) *Compile {
-        c.addIncludePath(ctx.paths.llvm.include.path);
+        c.addIncludePath(ctx.srcPath("llvm/include"));
         c.addConfigHeader(ctx.targets.llvm_public_config_header.?);
         c.addConfigHeader(ctx.targets.llvm_private_config_header.?);
         c.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
@@ -694,7 +715,7 @@ pub const Context = struct {
     }
 
     fn addClangIncludesAndLinks(ctx: @This(), c: *Compile) *Compile {
-        addLLVMIncludesAndLinks(ctx, c).addIncludePath(ctx.paths.clang.include.path);
+        addLLVMIncludesAndLinks(ctx, c).addIncludePath(ctx.srcPath("clang/include"));
         c.addConfigHeader(ctx.targets.clang_basic_version_config_header.?);
         c.addConfigHeader(ctx.targets.clang_config_config_header.?);
         c.addIncludePath(ctx.targets.clang_version_inc.?);
@@ -1062,51 +1083,55 @@ pub fn build(b: *std.Build) !void {
         });
     }
 
-    ctx.targets.clangd_lib = ctx.addClangLibrary(.{
-        .name = "clangd_lib",
-        .linkage = .static,
-        .root_module = ctx.makeModule(),
-    });
-    ctx.targets.clangd_lib.?.linkLibCpp();
-    ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.clang_tools_extra.include_cleaner.include.path);
-    ctx.targets.clangd_lib.?.addIncludePath(ctx.paths.clang_tools_extra.clangd.path);
-    ctx.targets.clangd_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
-    ctx.targets.clangd_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
-    ctx.targets.clangd_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-    // TODO: configure and install clang-tidy headers, add the build dir as include path
-    ctx.targets.clangd_lib.?.addConfigHeader(ctx.targets.cte_clang_tidy_config_config_header.?);
+    const clangd_lib = block: {
+        const lib = ctx.addClangLibrary(.{
+            .name = "clangd_lib",
+            .linkage = .static,
+            .root_module = ctx.makeModule(),
+        });
+        lib.linkLibCpp();
+        lib.addIncludePath(ctx.srcPath("clang-tools-extra/include-cleaner/include"));
+        lib.addIncludePath(ctx.srcPath("clang-tools-extra/clangd"));
+        lib.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
+        lib.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
+        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        // TODO: configure and install clang-tidy headers, add the build dir as include path
+        lib.addConfigHeader(ctx.targets.cte_clang_tidy_config_config_header.?);
 
-    ctx.targets.clangd_lib.?.addCSourceFiles(.{
-        .root = ctx.paths.clang_tools_extra.clangd.path,
-        .files = sources.cpp_files,
-        .flags = &.{},
-        .language = .cpp,
-    });
+        lib.addCSourceFiles(.{
+            .root = ctx.srcPath("clang-tools-extra/clangd"),
+            .files = sources.cpp_files,
+            .flags = &.{},
+            .language = .cpp,
+        });
 
-    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_ast_lib.?);
-    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_ast_matchers_lib.?);
-    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
-    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_format_lib.?);
-    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_driver_lib.?);
-    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_lex_lib.?);
-    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_tooling_core_lib.?);
-    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_tooling_inclusions_lib.?);
-    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_tooling_dependency_scanning_lib.?);
-    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_driver_lib.?);
-    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_frontend_lib.?);
-    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_sema_lib.?);
-    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_index_lib.?);
-    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_serialization_lib.?);
-    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_tooling_lib.?);
-    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_tooling_syntax_lib.?);
-    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.clang_tooling_inclusions_stdlib_lib.?);
+        lib.linkLibrary(ctx.targets.clang_ast_lib.?);
+        lib.linkLibrary(ctx.targets.clang_ast_matchers_lib.?);
+        lib.linkLibrary(ctx.targets.clang_basic_lib.?);
+        lib.linkLibrary(ctx.targets.clang_format_lib.?);
+        lib.linkLibrary(ctx.targets.clang_driver_lib.?);
+        lib.linkLibrary(ctx.targets.clang_lex_lib.?);
+        lib.linkLibrary(ctx.targets.clang_tooling_core_lib.?);
+        lib.linkLibrary(ctx.targets.clang_tooling_inclusions_lib.?);
+        lib.linkLibrary(ctx.targets.clang_tooling_dependency_scanning_lib.?);
+        lib.linkLibrary(ctx.targets.clang_driver_lib.?);
+        lib.linkLibrary(ctx.targets.clang_frontend_lib.?);
+        lib.linkLibrary(ctx.targets.clang_sema_lib.?);
+        lib.linkLibrary(ctx.targets.clang_index_lib.?);
+        lib.linkLibrary(ctx.targets.clang_serialization_lib.?);
+        lib.linkLibrary(ctx.targets.clang_tooling_lib.?);
+        lib.linkLibrary(ctx.targets.clang_tooling_syntax_lib.?);
+        lib.linkLibrary(ctx.targets.clang_tooling_inclusions_stdlib_lib.?);
 
-    // bring in llvm
-    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.llvm_support_lib.?);
-    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.llvm_frontend_openmp_lib.?);
-    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.llvm_option_lib.?);
-    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.llvm_target_parser_lib.?);
-    ctx.targets.clangd_lib.?.linkLibrary(ctx.targets.llvm_all_targets_infos_lib.?);
+        // bring in llvm
+        const llvm_libs = ctx.targets.llvm_libs.?;
+        lib.linkLibrary(llvm_libs.support_lib);
+        lib.linkLibrary(llvm_libs.frontend_openmp_lib);
+        lib.linkLibrary(llvm_libs.option_lib);
+        lib.linkLibrary(llvm_libs.target_parser_lib);
+        lib.linkLibrary(llvm_libs.all_targets_infos_lib);
+        break :block lib;
+    };
 
     // libs to build and link
     // ${LLVM_PTHREAD_LIB}
@@ -1118,7 +1143,7 @@ pub fn build(b: *std.Build) !void {
     // TODO: link ALL_CLANG_TIDY_CHECKS libraries if (clangd_tidy_checks)
 
     // TODO: include generated COMPLETIONMODEL headers and necessary sources
-    // ctx.targets.clangd_lib.?.addIncludePath(...);
+    // lib.addIncludePath(...);
 
     ctx.targets.clangd_main_lib = ctx.addClangLibrary(.{
         .name = "clangd_main_lib",
@@ -1127,12 +1152,12 @@ pub fn build(b: *std.Build) !void {
     });
     ctx.targets.clangd_main_lib.?.linkLibCpp();
     ctx.targets.clangd_main_lib.?.addCSourceFiles(.{
-        .root = ctx.paths.clang_tools_extra.clangd.tool.path,
+        .root = ctx.srcPath("clang-tools-extra/clangd/tool"),
         .files = sources.tool_lib_cpp_files,
         .flags = ctx.dupeGlobalFlags(),
     });
-    ctx.targets.clangd_main_lib.?.addIncludePath(ctx.paths.clang_tools_extra.clangd.path);
-    ctx.targets.clangd_main_lib.?.addIncludePath(ctx.paths.clang_tools_extra.include_cleaner.include.path);
+    ctx.targets.clangd_main_lib.?.addIncludePath(ctx.srcPath("clang-tools-extra/clangd"));
+    ctx.targets.clangd_main_lib.?.addIncludePath(ctx.srcPath("clang-tools-extra/include-cleaner/include"));
     ctx.targets.clangd_main_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
     ctx.targets.clangd_main_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
     ctx.targets.clangd_main_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
@@ -1143,12 +1168,12 @@ pub fn build(b: *std.Build) !void {
         .root_module = ctx.makeModule(),
     });
     ctx.targets.clangd_exe.?.addCSourceFiles(.{
-        .root = ctx.paths.clang_tools_extra.clangd.tool.path,
+        .root = ctx.srcPath("clang-tools-extra/clangd"),
         .files = sources.tool_cpp_files,
         .flags = ctx.dupeGlobalFlags(),
         .language = .cpp,
     });
     ctx.b.installArtifact(ctx.targets.clangd_exe.?);
-    ctx.targets.clangd_exe.?.linkLibrary(ctx.targets.clangd_lib.?);
+    ctx.targets.clangd_exe.?.linkLibrary(clangd_lib);
     ctx.targets.clangd_exe.?.linkLibrary(ctx.targets.clangd_main_lib.?);
 }

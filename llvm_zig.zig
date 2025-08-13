@@ -53,7 +53,7 @@ pub fn build(ctx: *Context) void {
     });
 
     ctx.targets.llvm_features_inc_config_header = ctx.b.addConfigHeader(
-        .{ .style = .{ .cmake = ctx.paths.clang_tools_extra.clangd.path.path(ctx.b, "Features.inc.in") }, .include_path = "Features.inc" },
+        .{ .style = .{ .cmake = ctx.srcPath("clang-tools-extra/clangd/Features.inc.in") }, .include_path = "Features.inc" },
         .{
             .CLANGD_BUILD_XPC = ctx.opts.clangd_build_xpc,
             .CLANGD_ENABLE_REMOTE = ctx.opts.clangd_enable_remote,
@@ -305,13 +305,13 @@ pub fn build(ctx: *Context) void {
     const targetOptions = ctx.module_opts;
 
     ctx.targets.llvm_host_component_demangle_lib = buildDemangle(ctx, hostOptions);
-    ctx.targets.llvm_demangle_lib = buildDemangle(ctx, targetOptions);
+    const llvm_demangle_lib = buildDemangle(ctx, targetOptions);
 
     // depends on demangle lib along with the abi-breaking, public and private config headers
     ctx.targets.llvm_host_component_support_lib = @import("llvm_zig_support.zig").build(ctx, hostOptions);
     ctx.targets.llvm_host_component_support_lib.?.linkLibrary(ctx.targets.llvm_host_component_demangle_lib.?);
-    ctx.targets.llvm_support_lib = @import("llvm_zig_support.zig").build(ctx, targetOptions);
-    ctx.targets.llvm_support_lib.?.linkLibrary(ctx.targets.llvm_demangle_lib.?);
+    const llvm_support_lib = @import("llvm_zig_support.zig").build(ctx, targetOptions);
+    llvm_support_lib.linkLibrary(llvm_demangle_lib);
 
     // build llvm tablegen lib
     ctx.targets.llvm_host_component_tablegen_lib = ctx.addLLVMLibrary(.{
@@ -319,27 +319,26 @@ pub fn build(ctx: *Context) void {
         .root_module = ctx.makeHostModule(),
     });
     ctx.targets.llvm_host_component_tablegen_lib.?.addCSourceFiles(.{
-        .root = ctx.paths.llvm.lib.tablegen.path,
+        .root = ctx.llvmLib("TableGen"),
         .files = sources.llvm_tablegen_lib_cpp_files,
         .flags = ctx.dupeGlobalFlags(),
         .language = .cpp,
     });
-    ctx.targets.llvm_host_component_tablegen_lib.?.addIncludePath(ctx.paths.llvm.lib.tablegen.path);
+    ctx.targets.llvm_host_component_tablegen_lib.?.addIncludePath(ctx.llvmLib("TableGen"));
     ctx.targets.llvm_host_component_tablegen_lib.?.linkLibrary(ctx.targets.llvm_host_component_support_lib.?);
 
-    // build llvm/utils/TableGen/Basic
     ctx.targets.llvm_host_component_tblgen_basic_lib = ctx.addLLVMObject(.{
         .name = "LLVMTableGenBasic",
         .root_module = ctx.makeHostModule(),
     });
     ctx.targets.llvm_host_component_tblgen_basic_lib.?.addCSourceFiles(.{
-        .root = ctx.paths.llvm.utils.tablegen.basic.path,
+        .root = ctx.srcPath("llvm/utils/TableGen/Basic"),
         .files = sources.llvm_tablegen_basic_lib_cpp_files,
         .flags = ctx.dupeGlobalFlags(),
         .language = .cpp,
     });
     ctx.targets.llvm_host_component_tblgen_basic_lib.?.linkLibrary(ctx.targets.llvm_host_component_tablegen_lib.?);
-    ctx.targets.llvm_host_component_tblgen_basic_lib.?.installHeadersDirectory(ctx.paths.llvm.utils.tablegen.basic.path, "Basic/", .{});
+    ctx.targets.llvm_host_component_tblgen_basic_lib.?.installHeadersDirectory(ctx.srcPath("llvm/utils/TableGen/Basic"), "Basic/", .{});
 
     // create llvm-min-tablgen to bootstrap regular llvm tablegen
     ctx.targets.llvm_host_component_tblgen_min_exe = ctx.addLLVMExecutable(.{
@@ -347,7 +346,7 @@ pub fn build(ctx: *Context) void {
         .root_module = ctx.makeHostModule(),
     });
     ctx.targets.llvm_host_component_tblgen_min_exe.?.addCSourceFiles(.{
-        .root = ctx.paths.llvm.utils.tablegen.path,
+        .root = ctx.srcPath("llvm/utils/TableGen"),
         .flags = ctx.dupeGlobalFlags(),
         .files = sources.llvm_min_tablegen_cpp_files,
         .language = .cpp,
@@ -368,17 +367,21 @@ pub fn build(ctx: *Context) void {
         .root_module = ctx.makeHostModule(),
     });
     ctx.targets.llvm_host_component_tblgen_common_lib.?.addCSourceFiles(.{
-        .root = ctx.paths.llvm.utils.tablegen.common.path,
+        .root = ctx.llvmUtil("TableGen/Common"),
         .files = sources.llvm_tablegen_common_lib_cpp_files,
         .flags = ctx.dupeGlobalFlags(),
         .language = .cpp,
     });
     ctx.targets.llvm_host_component_tblgen_common_lib.?.addIncludePath(llvm_min_tablegenerated_incs);
     // installHeadersDirectory is not recursive
-    ctx.targets.llvm_host_component_tblgen_common_lib.?.installHeadersDirectory(ctx.paths.llvm.utils.tablegen.common.path, "Common/", .{});
-    ctx.targets.llvm_host_component_tblgen_common_lib.?.installHeadersDirectory(ctx.paths.llvm.utils.tablegen.common.globalisel.path, "Common/GlobalISel/", .{});
+    ctx.targets.llvm_host_component_tblgen_common_lib.?.installHeadersDirectory(ctx.llvmUtil("TableGen/Common"), "Common/", .{});
+    ctx.targets.llvm_host_component_tblgen_common_lib.?.installHeadersDirectory(
+        ctx.llvmUtil("TableGen/Common/GlobalISel"),
+        "Common/GlobalISel/",
+        .{},
+    );
     // TODO: why is this necessary? installHeadersDirectory should add these folders to the include path, right?
-    ctx.targets.llvm_host_component_tblgen_common_lib.?.addIncludePath(ctx.paths.llvm.utils.tablegen.path);
+    ctx.targets.llvm_host_component_tblgen_common_lib.?.addIncludePath(ctx.llvmUtil("TableGen"));
 
     // link libLLVMTableGen lib into executable
     ctx.targets.llvm_host_component_tblgen_exe = ctx.addLLVMExecutable(.{
@@ -386,7 +389,7 @@ pub fn build(ctx: *Context) void {
         .root_module = ctx.makeHostModule(),
     });
     ctx.targets.llvm_host_component_tblgen_exe.?.addCSourceFiles(.{
-        .root = ctx.paths.llvm.utils.tablegen.path,
+        .root = ctx.llvmUtil("TableGen"),
         .files = sources.llvm_tablegen_cpp_files,
         .flags = ctx.dupeGlobalFlags(),
         .language = .cpp,
@@ -407,341 +410,366 @@ pub fn build(ctx: *Context) void {
         ctx.targets.llvm_tablegenerated_incs = writefile_step.getDirectory();
     }
 
-    {
-        ctx.targets.llvm_core_lib = ctx.b.addLibrary(.{
+    const llvm_core_lib = block: {
+        const lib = ctx.b.addLibrary(.{
             .name = "llvmCore",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.llvm_core_lib.?.addCSourceFiles(.{
-            .root = ctx.paths.llvm.lib.ir.path,
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("IR"),
             .files = sources.llvm_core_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
 
-        ctx.targets.llvm_core_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.llvm_core_lib.?.linkLibrary(ctx.targets.llvm_support_lib.?);
-    }
+        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.linkLibrary(llvm_support_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.llvm_option_lib = ctx.b.addLibrary(.{
+    const llvm_option_lib = block: {
+        const lib = ctx.b.addLibrary(.{
             .name = "llvmOption",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.llvm_option_lib.?.addCSourceFiles(.{
-            .root = ctx.paths.llvm.lib.option.path,
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("Option"),
             .files = sources.llvm_option_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
 
-        ctx.targets.llvm_option_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.llvm_option_lib.?.addIncludePath(ctx.paths.llvm.include.llvm.option.path);
-        ctx.targets.llvm_option_lib.?.linkLibrary(ctx.targets.llvm_support_lib.?);
-    }
+        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(ctx.llvmInc("Option"));
+        lib.linkLibrary(llvm_support_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.llvm_target_parser_lib = ctx.b.addLibrary(.{
+    const llvm_target_parser_lib = block: {
+        const lib = ctx.b.addLibrary(.{
             .name = "llvmTargetParser",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.llvm_target_parser_lib.?.addCSourceFiles(.{
-            .root = ctx.paths.llvm.lib.target_parser.path,
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("TargetParser"),
             .files = sources.llvm_target_parser_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
 
-        ctx.targets.llvm_target_parser_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.llvm_target_parser_lib.?.linkLibrary(ctx.targets.llvm_support_lib.?);
-    }
+        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.linkLibrary(llvm_support_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.llvm_binary_format_lib = ctx.b.addLibrary(.{
+    const llvm_binary_format_lib = block: {
+        const lib = ctx.b.addLibrary(.{
             .name = "llvmBinaryFormat",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.llvm_binary_format_lib.?.addCSourceFiles(.{
-            .root = ctx.paths.llvm.lib.binary_format.path,
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("BinaryFormat"),
             .files = sources.llvm_binary_format_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
 
-        ctx.targets.llvm_binary_format_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.llvm_binary_format_lib.?.linkLibrary(ctx.targets.llvm_support_lib.?);
-        ctx.targets.llvm_binary_format_lib.?.linkLibrary(ctx.targets.llvm_target_parser_lib.?);
-    }
+        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.linkLibrary(llvm_support_lib);
+        lib.linkLibrary(llvm_target_parser_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.llvm_bitstream_reader_lib = ctx.b.addLibrary(.{
+    const llvm_bitstream_reader_lib = block: {
+        const lib = ctx.b.addLibrary(.{
             .name = "llvmBitstreamReader",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.llvm_bitstream_reader_lib.?.addCSourceFiles(.{
-            .root = ctx.paths.llvm.lib.bitstream.reader.path,
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("Bitstream/Reader"),
             .files = sources.llvm_bitstream_reader_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
 
-        ctx.targets.llvm_bitstream_reader_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.llvm_bitstream_reader_lib.?.addIncludePath(ctx.paths.llvm.lib.bitcode.path);
-        ctx.targets.llvm_bitstream_reader_lib.?.addIncludePath(ctx.paths.llvm.lib.bitstream.path);
-        ctx.targets.llvm_bitstream_reader_lib.?.linkLibrary(ctx.targets.llvm_support_lib.?);
-    }
+        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(ctx.llvmLib("Bitcode"));
+        lib.addIncludePath(ctx.llvmLib("Bitstream"));
+        lib.linkLibrary(llvm_support_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.llvm_bitcode_reader_lib = ctx.b.addLibrary(.{
+    const llvm_bitcode_reader_lib = block: {
+        const lib = ctx.b.addLibrary(.{
             .name = "llvmBitcodeReader",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.llvm_bitcode_reader_lib.?.addCSourceFiles(.{
-            .root = ctx.paths.llvm.lib.bitcode.reader.path,
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("Bitcode/Reader"),
             .files = sources.llvm_bitcode_reader_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
 
-        ctx.targets.llvm_bitcode_reader_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.llvm_bitcode_reader_lib.?.addIncludePath(ctx.paths.llvm.lib.bitcode.path);
-        ctx.targets.llvm_bitcode_reader_lib.?.addIncludePath(ctx.paths.llvm.lib.bitstream.path);
-        ctx.targets.llvm_bitcode_reader_lib.?.linkLibrary(ctx.targets.llvm_support_lib.?);
-        ctx.targets.llvm_bitcode_reader_lib.?.linkLibrary(ctx.targets.llvm_core_lib.?);
-        ctx.targets.llvm_bitcode_reader_lib.?.linkLibrary(ctx.targets.llvm_target_parser_lib.?);
-        ctx.targets.llvm_bitcode_reader_lib.?.linkLibrary(ctx.targets.llvm_bitstream_reader_lib.?);
-    }
+        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(ctx.llvmLib("Bitcode"));
+        lib.addIncludePath(ctx.llvmLib("Bitstream"));
+        lib.linkLibrary(llvm_support_lib);
+        lib.linkLibrary(llvm_core_lib);
+        lib.linkLibrary(llvm_target_parser_lib);
+        lib.linkLibrary(llvm_bitstream_reader_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.llvm_object_lib = ctx.b.addLibrary(.{
+    const llvm_object_lib = block: {
+        const lib = ctx.b.addLibrary(.{
             .name = "llvmObject",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.llvm_object_lib.?.addCSourceFiles(.{
-            .root = ctx.paths.llvm.lib.object.path,
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("Object"),
             .files = sources.llvm_object_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
 
-        ctx.targets.llvm_object_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.llvm_object_lib.?.linkLibrary(ctx.targets.llvm_core_lib.?);
-        ctx.targets.llvm_object_lib.?.linkLibrary(ctx.targets.llvm_bitcode_reader_lib.?);
-    }
+        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.linkLibrary(llvm_core_lib);
+        lib.linkLibrary(llvm_bitcode_reader_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.llvm_debug_info_msf_lib = ctx.b.addLibrary(.{
+    const llvm_debug_info_msf_lib = block: {
+        const lib = ctx.b.addLibrary(.{
             .name = "llvmDebugInfoMSF",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.llvm_debug_info_msf_lib.?.addCSourceFiles(.{
-            .root = ctx.paths.llvm.lib.debug_info.msf.path,
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("DebugInfo/MSF"),
             .files = sources.llvm_debug_info_msf_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
 
-        ctx.targets.llvm_debug_info_msf_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.llvm_debug_info_msf_lib.?.addIncludePath(ctx.paths.llvm.include.llvm.debug_info.msf.path);
-        ctx.targets.llvm_debug_info_msf_lib.?.linkLibrary(ctx.targets.llvm_support_lib.?);
-    }
+        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(ctx.llvmInc("DebugInfo/MSF"));
+        lib.linkLibrary(llvm_support_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.llvm_debug_info_codeview_lib = ctx.b.addLibrary(.{
+    const llvm_debug_info_codeview_lib = block: {
+        const lib = ctx.b.addLibrary(.{
             .name = "llvmDebugInfoCodeView",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.llvm_debug_info_codeview_lib.?.addCSourceFiles(.{
-            .root = ctx.paths.llvm.lib.debug_info.codeview.path,
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("DebugInfo/CodeView"),
             .files = sources.llvm_debug_info_codeview_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
 
-        ctx.targets.llvm_debug_info_codeview_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.llvm_debug_info_codeview_lib.?.addIncludePath(ctx.paths.llvm.include.llvm.debug_info.codeview.path);
-        ctx.targets.llvm_debug_info_codeview_lib.?.linkLibrary(ctx.targets.llvm_support_lib.?);
-    }
+        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(ctx.llvmInc("DebugInfo/CodeView"));
+        lib.linkLibrary(llvm_support_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.llvm_debug_info_btf_lib = ctx.b.addLibrary(.{
+    const llvm_debug_info_btf_lib = block: {
+        const lib = ctx.b.addLibrary(.{
             .name = "llvmDebugInfoBTF",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.llvm_debug_info_btf_lib.?.addCSourceFiles(.{
-            .root = ctx.paths.llvm.lib.debug_info.btf.path,
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("DebugInfo/BTF"),
             .files = sources.llvm_debug_info_btf_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
 
-        ctx.targets.llvm_debug_info_btf_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.llvm_debug_info_btf_lib.?.addIncludePath(ctx.paths.llvm.include.llvm.debug_info.btf.path);
-        ctx.targets.llvm_debug_info_btf_lib.?.linkLibrary(ctx.targets.llvm_support_lib.?);
-    }
+        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(ctx.llvmInc("DebugInfo/BTF"));
+        lib.linkLibrary(llvm_support_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.llvm_debug_info_pdb_lib = ctx.b.addLibrary(.{
+    const llvm_debug_info_pdb_lib = block: {
+        const lib = ctx.b.addLibrary(.{
             .name = "llvmDebugInfoPDB",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.llvm_debug_info_pdb_lib.?.addCSourceFiles(.{
-            .root = ctx.paths.llvm.lib.debug_info.pdb.path,
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("DebugInfo/PDB"),
             .files = sources.llvm_debug_info_pdb_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
 
         // TODO: support DIA sdk for pdb?
-        ctx.targets.llvm_debug_info_pdb_lib.?.addIncludePath(ctx.paths.llvm.include.llvm.debug_info.pdb.native.path);
-        ctx.targets.llvm_debug_info_pdb_lib.?.addCSourceFiles(.{
-            .root = ctx.paths.llvm.lib.debug_info.pdb.path,
+        lib.addIncludePath(ctx.llvmInc("DebugInfo/PDB"));
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("DebugInfo/PDB"),
             .files = sources.llvm_debug_info_pdb_native_folder_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
 
-        ctx.targets.llvm_debug_info_pdb_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.llvm_debug_info_pdb_lib.?.addIncludePath(ctx.paths.llvm.include.llvm.debug_info.pdb.path);
+        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(ctx.llvmInc("DebugInfo/PDB"));
 
-        ctx.targets.llvm_debug_info_pdb_lib.?.linkLibrary(ctx.targets.llvm_support_lib.?);
-        ctx.targets.llvm_debug_info_pdb_lib.?.linkLibrary(ctx.targets.llvm_object_lib.?);
-        ctx.targets.llvm_debug_info_pdb_lib.?.linkLibrary(ctx.targets.llvm_binary_format_lib.?);
-        ctx.targets.llvm_debug_info_pdb_lib.?.linkLibrary(ctx.targets.llvm_debug_info_codeview_lib.?);
-        ctx.targets.llvm_debug_info_pdb_lib.?.linkLibrary(ctx.targets.llvm_debug_info_msf_lib.?);
-    }
+        lib.linkLibrary(llvm_support_lib);
+        lib.linkLibrary(llvm_object_lib);
+        lib.linkLibrary(llvm_binary_format_lib);
+        lib.linkLibrary(llvm_debug_info_codeview_lib);
+        lib.linkLibrary(llvm_debug_info_msf_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.llvm_debug_info_dwarf_lib = ctx.b.addLibrary(.{
+    const llvm_debug_info_dwarf_lib = block: {
+        const lib = ctx.b.addLibrary(.{
             .name = "llvmDebugInfoDWARF",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.llvm_debug_info_dwarf_lib.?.addCSourceFiles(.{
-            .root = ctx.paths.llvm.lib.debug_info.dwarf.path,
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("DebugInfo/DWARF"),
             .files = sources.llvm_debug_info_dwarf_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
 
-        ctx.targets.llvm_debug_info_dwarf_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.llvm_debug_info_dwarf_lib.?.addIncludePath(ctx.paths.llvm.include.llvm.debug_info.dwarf.path);
-        ctx.targets.llvm_debug_info_dwarf_lib.?.addIncludePath(ctx.paths.llvm.include.llvm.debug_info.path);
-        ctx.targets.llvm_debug_info_dwarf_lib.?.linkLibrary(ctx.targets.llvm_binary_format_lib.?);
-        ctx.targets.llvm_debug_info_dwarf_lib.?.linkLibrary(ctx.targets.llvm_object_lib.?);
-        ctx.targets.llvm_debug_info_dwarf_lib.?.linkLibrary(ctx.targets.llvm_support_lib.?);
-        ctx.targets.llvm_debug_info_dwarf_lib.?.linkLibrary(ctx.targets.llvm_target_parser_lib.?);
-    }
+        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(ctx.llvmInc("DebugInfo/DWARF"));
+        lib.addIncludePath(ctx.llvmInc("DebugInfo"));
+        lib.linkLibrary(llvm_binary_format_lib);
+        lib.linkLibrary(llvm_object_lib);
+        lib.linkLibrary(llvm_support_lib);
+        lib.linkLibrary(llvm_target_parser_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.llvm_debug_info_symbolize_lib = ctx.b.addLibrary(.{
+    const llvm_debug_info_symbolize_lib = block: {
+        const lib = ctx.b.addLibrary(.{
             .name = "llvmDebugInfoSymbolize",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.llvm_debug_info_symbolize_lib.?.addCSourceFiles(.{
-            .root = ctx.paths.llvm.lib.debug_info.symbolize.path,
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("DebugInfo/Symbolize"),
             .files = sources.llvm_debug_info_symbolize_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
 
-        ctx.targets.llvm_debug_info_symbolize_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.llvm_debug_info_symbolize_lib.?.addIncludePath(ctx.paths.llvm.include.llvm.debug_info.symbolize.path);
-        ctx.targets.llvm_debug_info_symbolize_lib.?.linkLibrary(ctx.targets.llvm_debug_info_dwarf_lib.?);
-        ctx.targets.llvm_debug_info_symbolize_lib.?.linkLibrary(ctx.targets.llvm_debug_info_pdb_lib.?);
-        ctx.targets.llvm_debug_info_symbolize_lib.?.linkLibrary(ctx.targets.llvm_debug_info_btf_lib.?);
-        ctx.targets.llvm_debug_info_symbolize_lib.?.linkLibrary(ctx.targets.llvm_object_lib.?);
-        ctx.targets.llvm_debug_info_symbolize_lib.?.linkLibrary(ctx.targets.llvm_support_lib.?);
-        ctx.targets.llvm_debug_info_symbolize_lib.?.linkLibrary(ctx.targets.llvm_demangle_lib.?);
-        ctx.targets.llvm_debug_info_symbolize_lib.?.linkLibrary(ctx.targets.llvm_target_parser_lib.?);
-    }
+        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(ctx.llvmLib("DebugInfo/Symbolize"));
+        lib.linkLibrary(llvm_debug_info_dwarf_lib);
+        lib.linkLibrary(llvm_debug_info_pdb_lib);
+        lib.linkLibrary(llvm_debug_info_btf_lib);
+        lib.linkLibrary(llvm_object_lib);
+        lib.linkLibrary(llvm_support_lib);
+        lib.linkLibrary(llvm_demangle_lib);
+        lib.linkLibrary(llvm_target_parser_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.llvm_profile_data_lib = ctx.b.addLibrary(.{
+    const llvm_profile_data_lib = block: {
+        const lib = ctx.b.addLibrary(.{
             .name = "llvmProfileData",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.llvm_profile_data_lib.?.addCSourceFiles(.{
-            .root = ctx.paths.llvm.lib.profile_data.path,
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("ProfileData"),
             .files = sources.llvm_profile_data_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
 
-        ctx.targets.llvm_profile_data_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.llvm_profile_data_lib.?.linkLibrary(ctx.targets.llvm_bitstream_reader_lib.?);
-        ctx.targets.llvm_profile_data_lib.?.linkLibrary(ctx.targets.llvm_core_lib.?);
-        ctx.targets.llvm_profile_data_lib.?.linkLibrary(ctx.targets.llvm_object_lib.?);
-        ctx.targets.llvm_profile_data_lib.?.linkLibrary(ctx.targets.llvm_support_lib.?);
-        ctx.targets.llvm_profile_data_lib.?.linkLibrary(ctx.targets.llvm_demangle_lib.?);
-        ctx.targets.llvm_profile_data_lib.?.linkLibrary(ctx.targets.llvm_debug_info_symbolize_lib.?);
-        ctx.targets.llvm_profile_data_lib.?.linkLibrary(ctx.targets.llvm_debug_info_dwarf_lib.?);
-        ctx.targets.llvm_profile_data_lib.?.linkLibrary(ctx.targets.llvm_target_parser_lib.?);
-    }
+        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.linkLibrary(llvm_bitstream_reader_lib);
+        lib.linkLibrary(llvm_core_lib);
+        lib.linkLibrary(llvm_object_lib);
+        lib.linkLibrary(llvm_support_lib);
+        lib.linkLibrary(llvm_demangle_lib);
+        lib.linkLibrary(llvm_debug_info_symbolize_lib);
+        lib.linkLibrary(llvm_debug_info_dwarf_lib);
+        lib.linkLibrary(llvm_target_parser_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.llvm_analysis_lib = ctx.b.addLibrary(.{
+    const llvm_analysis_lib = block: {
+        const lib = ctx.b.addLibrary(.{
             .name = "llvmAnalysis",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.llvm_analysis_lib.?.addCSourceFiles(.{
-            .root = ctx.paths.llvm.lib.analysis.path,
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("Analysis"),
             .files = sources.llvm_analysis_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
 
-        ctx.targets.llvm_analysis_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.llvm_analysis_lib.?.linkLibrary(ctx.targets.llvm_binary_format_lib.?);
-        ctx.targets.llvm_analysis_lib.?.linkLibrary(ctx.targets.llvm_core_lib.?);
-        ctx.targets.llvm_analysis_lib.?.linkLibrary(ctx.targets.llvm_object_lib.?);
-        ctx.targets.llvm_analysis_lib.?.linkLibrary(ctx.targets.llvm_profile_data_lib.?);
-        ctx.targets.llvm_analysis_lib.?.linkLibrary(ctx.targets.llvm_support_lib.?);
-        ctx.targets.llvm_analysis_lib.?.linkLibrary(ctx.targets.llvm_target_parser_lib.?);
-    }
+        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.linkLibrary(llvm_binary_format_lib);
+        lib.linkLibrary(llvm_core_lib);
+        lib.linkLibrary(llvm_object_lib);
+        lib.linkLibrary(llvm_profile_data_lib);
+        lib.linkLibrary(llvm_support_lib);
+        lib.linkLibrary(llvm_target_parser_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.llvm_transforms_utils_lib = ctx.b.addLibrary(.{
+    const llvm_transforms_utils_lib = block: {
+        const lib = ctx.b.addLibrary(.{
             .name = "llvmFrontendOpenMP",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.llvm_transforms_utils_lib.?.addCSourceFiles(.{
-            .root = ctx.paths.llvm.lib.transform.utils.path,
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("Transforms/Utils"),
             .files = sources.llvm_transforms_utils_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
 
-        ctx.targets.llvm_transforms_utils_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.llvm_transforms_utils_lib.?.addIncludePath(ctx.paths.llvm.include.llvm.transform.path);
-        ctx.targets.llvm_transforms_utils_lib.?.addIncludePath(ctx.paths.llvm.include.llvm.transform.utils.path);
-        ctx.targets.llvm_transforms_utils_lib.?.linkLibrary(ctx.targets.llvm_analysis_lib.?);
-        ctx.targets.llvm_transforms_utils_lib.?.linkLibrary(ctx.targets.llvm_core_lib.?);
-        ctx.targets.llvm_transforms_utils_lib.?.linkLibrary(ctx.targets.llvm_support_lib.?);
-        ctx.targets.llvm_transforms_utils_lib.?.linkLibrary(ctx.targets.llvm_target_parser_lib.?);
-    }
+        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(ctx.llvmInc("Transforms"));
+        lib.addIncludePath(ctx.llvmInc("Transforms/Utils"));
+        lib.linkLibrary(llvm_analysis_lib);
+        lib.linkLibrary(llvm_core_lib);
+        lib.linkLibrary(llvm_support_lib);
+        lib.linkLibrary(llvm_target_parser_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.llvm_frontend_openmp_lib = ctx.b.addLibrary(.{
+    const llvm_frontend_openmp_lib = block: {
+        const lib = ctx.b.addLibrary(.{
             .name = "llvmFrontendOpenMP",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.llvm_frontend_openmp_lib.?.addCSourceFiles(.{
-            .root = ctx.paths.llvm.lib.frontend.openmp.path,
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("Frontend/OpenMP"),
             .files = sources.llvm_frontend_openmp_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
 
-        ctx.targets.llvm_frontend_openmp_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.llvm_frontend_openmp_lib.?.addIncludePath(ctx.paths.llvm.include.llvm.frontend.path);
-        ctx.targets.llvm_frontend_openmp_lib.?.addIncludePath(ctx.paths.llvm.include.llvm.frontend.openmp.path);
-        ctx.targets.llvm_frontend_openmp_lib.?.linkLibrary(ctx.targets.llvm_core_lib.?);
-        ctx.targets.llvm_frontend_openmp_lib.?.linkLibrary(ctx.targets.llvm_support_lib.?);
-        ctx.targets.llvm_frontend_openmp_lib.?.linkLibrary(ctx.targets.llvm_target_parser_lib.?);
-        ctx.targets.llvm_frontend_openmp_lib.?.linkLibrary(ctx.targets.llvm_transforms_utils_lib.?);
-        ctx.targets.llvm_frontend_openmp_lib.?.linkLibrary(ctx.targets.llvm_analysis_lib.?);
-        ctx.targets.llvm_frontend_openmp_lib.?.linkLibrary(ctx.targets.llvm_demangle_lib.?);
-    }
+        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(ctx.llvmInc("Frontend"));
+        lib.addIncludePath(ctx.llvmInc("Frontend/OpenMP"));
+        lib.linkLibrary(llvm_core_lib);
+        lib.linkLibrary(llvm_support_lib);
+        lib.linkLibrary(llvm_target_parser_lib);
+        lib.linkLibrary(llvm_transforms_utils_lib);
+        lib.linkLibrary(llvm_analysis_lib);
+        lib.linkLibrary(llvm_demangle_lib);
+        break :block lib;
+    };
+
+    ctx.targets.llvm_libs = .{
+        .option_lib = llvm_option_lib,
+        .support_lib = llvm_support_lib,
+        .target_parser_lib = llvm_target_parser_lib,
+        .frontend_openmp_lib = llvm_frontend_openmp_lib,
+        //.all_targets_infos_lib =
+    };
 }
 
 fn buildDemangle(
@@ -754,7 +782,7 @@ fn buildDemangle(
         .linkage = .static,
     });
     out.addCSourceFiles(.{
-        .root = ctx.paths.llvm.lib.demangle.path,
+        .root = ctx.llvmLib("Demangle"),
         .files = sources.demangle_cpp_files,
         .language = .cpp,
         .flags = ctx.dupeGlobalFlags(),
