@@ -149,7 +149,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     const clang_host_component_support_lib = block: {
         const lib = compileSupportLib(ctx, ctx.makeHostModule());
         // clang support also has llvm support and tablegen lib
-        lib.linkLibrary(llvm.host_component_tablegen_lib);
+        Context.linkAll(lib, &.{llvm.host_component_tablegen_lib});
         break :block lib;
     };
 

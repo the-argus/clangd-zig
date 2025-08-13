@@ -520,23 +520,6 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         break :block writefile_step.getDirectory();
     };
 
-    const llvm_core_lib = block: {
-        const lib = addLLVMLibrary(ctx, .{
-            .name = "llvmCore",
-            .root_module = ctx.makeModule(),
-        });
-        lib.addCSourceFiles(.{
-            .root = ctx.llvmLib("IR"),
-            .files = sources.llvm_core_lib_cpp_files,
-            .flags = ctx.dupeGlobalFlags(),
-            .language = .cpp,
-        });
-
-        lib.addIncludePath(tablegenerated_incs);
-        lib.linkLibrary(llvm_support_lib);
-        break :block lib;
-    };
-
     const llvm_option_lib = block: {
         const lib = addLLVMLibrary(ctx, .{
             .name = "llvmOption",
@@ -549,9 +532,11 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        lib.addIncludePath(tablegenerated_incs);
-        lib.addIncludePath(ctx.llvmInc("Option"));
-        lib.linkLibrary(llvm_support_lib);
+        Context.includeAll(lib, .{
+            tablegenerated_incs,
+            ctx.llvmInc("Option"),
+        });
+        Context.linkAll(lib, .{llvm_support_lib});
         break :block lib;
     };
 
@@ -567,8 +552,8 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        lib.addIncludePath(tablegenerated_incs);
-        lib.linkLibrary(llvm_support_lib);
+        Context.includeAll(lib, &.{tablegenerated_incs});
+        Context.linkAll(lib, &.{llvm_support_lib});
         break :block lib;
     };
 
@@ -584,9 +569,11 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        lib.addIncludePath(tablegenerated_incs);
-        lib.linkLibrary(llvm_support_lib);
-        lib.linkLibrary(llvm_target_parser_lib);
+        Context.includeAll(lib, &.{tablegenerated_incs});
+        Context.linkAll(lib, &.{
+            llvm_support_lib,
+            llvm_target_parser_lib,
+        });
         break :block lib;
     };
 
@@ -602,10 +589,55 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        lib.addIncludePath(tablegenerated_incs);
-        lib.addIncludePath(ctx.llvmLib("Bitcode"));
-        lib.addIncludePath(ctx.llvmLib("Bitstream"));
-        lib.linkLibrary(llvm_support_lib);
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmLib("Bitcode"),
+            ctx.llvmLib("Bitstream"),
+        });
+        Context.linkAll(lib, &.{llvm_support_lib});
+        break :block lib;
+    };
+
+    const llvm_remarks_lib = block: {
+        const lib = addLLVMLibrary(ctx, .{
+            .name = "llvmRemarks",
+            .root_module = ctx.makeModule(),
+        });
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("Remarks"),
+            .files = sources.llvm_remarks_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+
+        Context.includeAll(lib, &.{tablegenerated_incs});
+        Context.linkAll(lib, &.{
+            llvm_support_lib,
+            llvm_bitstream_reader_lib,
+        });
+        break :block lib;
+    };
+
+    const llvm_core_lib = block: {
+        const lib = addLLVMLibrary(ctx, .{
+            .name = "llvmCore",
+            .root_module = ctx.makeModule(),
+        });
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("IR"),
+            .files = sources.llvm_core_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+
+        Context.includeAll(lib, &.{tablegenerated_incs});
+        Context.linkAll(lib, &.{
+            llvm_binary_format_lib,
+            llvm_demangle_lib,
+            llvm_remarks_lib,
+            llvm_support_lib,
+            llvm_target_parser_lib,
+        });
         break :block lib;
     };
 
@@ -621,13 +653,17 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        lib.addIncludePath(tablegenerated_incs);
-        lib.addIncludePath(ctx.llvmLib("Bitcode"));
-        lib.addIncludePath(ctx.llvmLib("Bitstream"));
-        lib.linkLibrary(llvm_support_lib);
-        lib.linkLibrary(llvm_core_lib);
-        lib.linkLibrary(llvm_target_parser_lib);
-        lib.linkLibrary(llvm_bitstream_reader_lib);
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmLib("Bitcode"),
+            ctx.llvmLib("Bitstream"),
+        });
+        Context.linkAll(lib, &.{
+            llvm_support_lib,
+            llvm_core_lib,
+            llvm_target_parser_lib,
+            llvm_bitstream_reader_lib,
+        });
         break :block lib;
     };
 
@@ -643,9 +679,11 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        lib.addIncludePath(tablegenerated_incs);
-        lib.linkLibrary(llvm_core_lib);
-        lib.linkLibrary(llvm_bitcode_reader_lib);
+        Context.includeAll(lib, &.{tablegenerated_incs});
+        Context.linkAll(lib, &.{
+            llvm_core_lib,
+            llvm_bitcode_reader_lib,
+        });
         break :block lib;
     };
 
@@ -661,9 +699,11 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        lib.addIncludePath(tablegenerated_incs);
-        lib.addIncludePath(ctx.llvmInc("DebugInfo/MSF"));
-        lib.linkLibrary(llvm_support_lib);
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmInc("DebugInfo/MSF"),
+        });
+        Context.linkAll(lib, &.{llvm_support_lib});
         break :block lib;
     };
 
@@ -679,9 +719,11 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        lib.addIncludePath(tablegenerated_incs);
-        lib.addIncludePath(ctx.llvmInc("DebugInfo/CodeView"));
-        lib.linkLibrary(llvm_support_lib);
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmInc("DebugInfo/CodeView"),
+        });
+        Context.linkAll(lib, &.{llvm_support_lib});
         break :block lib;
     };
 
@@ -726,14 +768,18 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        lib.addIncludePath(tablegenerated_incs);
-        lib.addIncludePath(ctx.llvmInc("DebugInfo/PDB"));
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmInc("DebugInfo/PDB"),
+        });
+        Context.linkAll(lib, &.{
+            llvm_support_lib,
+            llvm_object_lib,
+            llvm_binary_format_lib,
+            llvm_debug_info_codeview_lib,
+            llvm_debug_info_msf_lib,
+        });
 
-        lib.linkLibrary(llvm_support_lib);
-        lib.linkLibrary(llvm_object_lib);
-        lib.linkLibrary(llvm_binary_format_lib);
-        lib.linkLibrary(llvm_debug_info_codeview_lib);
-        lib.linkLibrary(llvm_debug_info_msf_lib);
         break :block lib;
     };
 
@@ -749,13 +795,17 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        lib.addIncludePath(tablegenerated_incs);
-        lib.addIncludePath(ctx.llvmInc("DebugInfo/DWARF"));
-        lib.addIncludePath(ctx.llvmInc("DebugInfo"));
-        lib.linkLibrary(llvm_binary_format_lib);
-        lib.linkLibrary(llvm_object_lib);
-        lib.linkLibrary(llvm_support_lib);
-        lib.linkLibrary(llvm_target_parser_lib);
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmInc("DebugInfo/DWARF"),
+            ctx.llvmInc("DebugInfo"),
+        });
+        Context.linkAll(lib, &.{
+            llvm_binary_format_lib,
+            llvm_object_lib,
+            llvm_support_lib,
+            llvm_target_parser_lib,
+        });
         break :block lib;
     };
 
@@ -771,15 +821,19 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        lib.addIncludePath(tablegenerated_incs);
-        lib.addIncludePath(ctx.llvmLib("DebugInfo/Symbolize"));
-        lib.linkLibrary(llvm_debug_info_dwarf_lib);
-        lib.linkLibrary(llvm_debug_info_pdb_lib);
-        lib.linkLibrary(llvm_debug_info_btf_lib);
-        lib.linkLibrary(llvm_object_lib);
-        lib.linkLibrary(llvm_support_lib);
-        lib.linkLibrary(llvm_demangle_lib);
-        lib.linkLibrary(llvm_target_parser_lib);
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmLib("DebugInfo/Symbolize"),
+        });
+        Context.linkAll(lib, &.{
+            llvm_debug_info_dwarf_lib,
+            llvm_debug_info_pdb_lib,
+            llvm_debug_info_btf_lib,
+            llvm_object_lib,
+            llvm_support_lib,
+            llvm_demangle_lib,
+            llvm_target_parser_lib,
+        });
         break :block lib;
     };
 
@@ -795,15 +849,17 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        lib.addIncludePath(tablegenerated_incs);
-        lib.linkLibrary(llvm_bitstream_reader_lib);
-        lib.linkLibrary(llvm_core_lib);
-        lib.linkLibrary(llvm_object_lib);
-        lib.linkLibrary(llvm_support_lib);
-        lib.linkLibrary(llvm_demangle_lib);
-        lib.linkLibrary(llvm_debug_info_symbolize_lib);
-        lib.linkLibrary(llvm_debug_info_dwarf_lib);
-        lib.linkLibrary(llvm_target_parser_lib);
+        Context.includeAll(lib, &.{tablegenerated_incs});
+        Context.linkAll(lib, &.{
+            llvm_bitstream_reader_lib,
+            llvm_core_lib,
+            llvm_object_lib,
+            llvm_support_lib,
+            llvm_demangle_lib,
+            llvm_debug_info_symbolize_lib,
+            llvm_debug_info_dwarf_lib,
+            llvm_target_parser_lib,
+        });
         break :block lib;
     };
 
@@ -819,13 +875,15 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        lib.addIncludePath(tablegenerated_incs);
-        lib.linkLibrary(llvm_binary_format_lib);
-        lib.linkLibrary(llvm_core_lib);
-        lib.linkLibrary(llvm_object_lib);
-        lib.linkLibrary(llvm_profile_data_lib);
-        lib.linkLibrary(llvm_support_lib);
-        lib.linkLibrary(llvm_target_parser_lib);
+        Context.includeAll(lib, &.{tablegenerated_incs});
+        Context.linkAll(lib, &.{
+            llvm_binary_format_lib,
+            llvm_core_lib,
+            llvm_object_lib,
+            llvm_profile_data_lib,
+            llvm_support_lib,
+            llvm_target_parser_lib,
+        });
         break :block lib;
     };
 
@@ -841,13 +899,17 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        lib.addIncludePath(tablegenerated_incs);
-        lib.addIncludePath(ctx.llvmInc("Transforms"));
-        lib.addIncludePath(ctx.llvmInc("Transforms/Utils"));
-        lib.linkLibrary(llvm_analysis_lib);
-        lib.linkLibrary(llvm_core_lib);
-        lib.linkLibrary(llvm_support_lib);
-        lib.linkLibrary(llvm_target_parser_lib);
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmInc("Transforms"),
+            ctx.llvmInc("Transforms/Utils"),
+        });
+        Context.linkAll(lib, &.{
+            llvm_analysis_lib,
+            llvm_core_lib,
+            llvm_support_lib,
+            llvm_target_parser_lib,
+        });
         break :block lib;
     };
 
@@ -863,15 +925,19 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        lib.addIncludePath(tablegenerated_incs);
-        lib.addIncludePath(ctx.llvmInc("Frontend"));
-        lib.addIncludePath(ctx.llvmInc("Frontend/OpenMP"));
-        lib.linkLibrary(llvm_core_lib);
-        lib.linkLibrary(llvm_support_lib);
-        lib.linkLibrary(llvm_target_parser_lib);
-        lib.linkLibrary(llvm_transforms_utils_lib);
-        lib.linkLibrary(llvm_analysis_lib);
-        lib.linkLibrary(llvm_demangle_lib);
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmInc("Frontend"),
+            ctx.llvmInc("Frontend/OpenMP"),
+        });
+        Context.linkAll(lib, &.{
+            llvm_core_lib,
+            llvm_support_lib,
+            llvm_target_parser_lib,
+            llvm_transforms_utils_lib,
+            llvm_analysis_lib,
+            llvm_demangle_lib,
+        });
         break :block lib;
     };
 
