@@ -146,23 +146,29 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     clang_include_paths = &includes;
 
     // naming these with clang_* because names are shared with llvm
-    const clang_host_component_support_lib = compileSupportLib(ctx, ctx.makeHostModule());
-    // clang support also has llvm support and tablegen lib
-    clang_host_component_support_lib.linkLibrary(llvm.host_component_tablegen_lib);
+    const clang_host_component_support_lib = block: {
+        const lib = compileSupportLib(ctx, ctx.makeHostModule());
+        // clang support also has llvm support and tablegen lib
+        lib.linkLibrary(llvm.host_component_tablegen_lib);
+        break :block lib;
+    };
 
     const clang_support_lib = compileSupportLib(ctx, ctx.makeModule());
 
-    const clang_host_component_tblgen_exe = addClangExecutable(ctx, .{
-        .name = "clang-tblgen",
-        .root_module = ctx.makeHostModule(),
-    });
-    clang_host_component_tblgen_exe.addCSourceFiles(.{
-        .files = sources.clang_tablegen_cpp_files,
-        .root = ctx.clangUtil("TableGen"),
-        .flags = ctx.dupeGlobalFlags(),
-        .language = .cpp,
-    });
-    clang_host_component_tblgen_exe.linkLibrary(clang_host_component_support_lib);
+    const clang_host_component_tblgen_exe = block: {
+        const lib = addClangExecutable(ctx, .{
+            .name = "clang-tblgen",
+            .root_module = ctx.makeHostModule(),
+        });
+        lib.addCSourceFiles(.{
+            .files = sources.clang_tablegen_cpp_files,
+            .root = ctx.clangUtil("TableGen"),
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+        Context.linkAll(lib, &.{clang_host_component_support_lib});
+        break :block lib;
+    };
 
     const writefile_step = ctx.b.addWriteFiles();
     const writefile_step_phase2 = ctx.b.addWriteFiles();

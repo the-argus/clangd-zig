@@ -409,44 +409,53 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
     llvm_support_lib.linkLibrary(llvm_demangle_lib);
 
     // build llvm tablegen lib
-    const host_component_tablegen_lib = addLLVMLibrary(ctx, .{
-        .name = "LLVMTableGen",
-        .root_module = ctx.makeHostModule(),
-    });
-    host_component_tablegen_lib.addCSourceFiles(.{
-        .root = ctx.llvmLib("TableGen"),
-        .files = sources.llvm_tablegen_lib_cpp_files,
-        .flags = ctx.dupeGlobalFlags(),
-        .language = .cpp,
-    });
-    host_component_tablegen_lib.addIncludePath(ctx.llvmLib("TableGen"));
-    host_component_tablegen_lib.linkLibrary(host_component_support_lib);
+    const host_component_tablegen_lib = block: {
+        const lib = addLLVMLibrary(ctx, .{
+            .name = "LLVMTableGen",
+            .root_module = ctx.makeHostModule(),
+        });
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("TableGen"),
+            .files = sources.llvm_tablegen_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+        lib.addIncludePath(ctx.llvmLib("TableGen"));
+        lib.linkLibrary(host_component_support_lib);
+        break :block lib;
+    };
 
-    const host_component_tblgen_basic_lib = addLLVMObject(ctx, .{
-        .name = "LLVMTableGenBasic",
-        .root_module = ctx.makeHostModule(),
-    });
-    host_component_tblgen_basic_lib.addCSourceFiles(.{
-        .root = ctx.srcPath("llvm/utils/TableGen/Basic"),
-        .files = sources.llvm_tablegen_basic_lib_cpp_files,
-        .flags = ctx.dupeGlobalFlags(),
-        .language = .cpp,
-    });
-    host_component_tblgen_basic_lib.linkLibrary(host_component_tablegen_lib);
-    host_component_tblgen_basic_lib.installHeadersDirectory(ctx.srcPath("llvm/utils/TableGen/Basic"), "Basic/", .{});
+    const host_component_tblgen_basic_lib = block: {
+        const lib = addLLVMObject(ctx, .{
+            .name = "LLVMTableGenBasic",
+            .root_module = ctx.makeHostModule(),
+        });
+        lib.addCSourceFiles(.{
+            .root = ctx.srcPath("llvm/utils/TableGen/Basic"),
+            .files = sources.llvm_tablegen_basic_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+        lib.linkLibrary(host_component_tablegen_lib);
+        lib.installHeadersDirectory(ctx.srcPath("llvm/utils/TableGen/Basic"), "Basic/", .{});
+        break :block lib;
+    };
 
     // create llvm-min-tablgen to bootstrap regular llvm tablegen
-    const host_component_tblgen_min_exe = addLLVMExecutable(ctx, .{
-        .name = "llvm-min-tablgen",
-        .root_module = ctx.makeHostModule(),
-    });
-    host_component_tblgen_min_exe.addCSourceFiles(.{
-        .root = ctx.srcPath("llvm/utils/TableGen"),
-        .flags = ctx.dupeGlobalFlags(),
-        .files = sources.llvm_min_tablegen_cpp_files,
-        .language = .cpp,
-    });
-    host_component_tblgen_min_exe.addObject(host_component_tblgen_basic_lib);
+    const host_component_tblgen_min_exe = block: {
+        const lib = addLLVMExecutable(ctx, .{
+            .name = "llvm-min-tablgen",
+            .root_module = ctx.makeHostModule(),
+        });
+        lib.addCSourceFiles(.{
+            .root = ctx.srcPath("llvm/utils/TableGen"),
+            .flags = ctx.dupeGlobalFlags(),
+            .files = sources.llvm_min_tablegen_cpp_files,
+            .language = .cpp,
+        });
+        lib.addObject(host_component_tblgen_basic_lib);
+        break :block lib;
+    };
 
     const llvm_min_tablegenerated_incs = block: {
         const writefile_step = ctx.b.addWriteFiles();
@@ -457,26 +466,29 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
     };
 
     // build llvm/utils/TableGen/Common
-    const host_component_tblgen_common_lib = addLLVMObject(ctx, .{
-        .name = "LLVMTableGenCommon",
-        .root_module = ctx.makeHostModule(),
-    });
-    host_component_tblgen_common_lib.addCSourceFiles(.{
-        .root = ctx.llvmUtil("TableGen/Common"),
-        .files = sources.llvm_tablegen_common_lib_cpp_files,
-        .flags = ctx.dupeGlobalFlags(),
-        .language = .cpp,
-    });
-    host_component_tblgen_common_lib.addIncludePath(llvm_min_tablegenerated_incs);
-    // installHeadersDirectory is not recursive
-    host_component_tblgen_common_lib.installHeadersDirectory(ctx.llvmUtil("TableGen/Common"), "Common/", .{});
-    host_component_tblgen_common_lib.installHeadersDirectory(
-        ctx.llvmUtil("TableGen/Common/GlobalISel"),
-        "Common/GlobalISel/",
-        .{},
-    );
-    // TODO: why is this necessary? installHeadersDirectory should add these folders to the include path, right?
-    host_component_tblgen_common_lib.addIncludePath(ctx.llvmUtil("TableGen"));
+    const host_component_tblgen_common_lib = block: {
+        const lib = addLLVMObject(ctx, .{
+            .name = "LLVMTableGenCommon",
+            .root_module = ctx.makeHostModule(),
+        });
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmUtil("TableGen/Common"),
+            .files = sources.llvm_tablegen_common_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+        lib.addIncludePath(llvm_min_tablegenerated_incs);
+        // installHeadersDirectory is not recursive
+        lib.installHeadersDirectory(ctx.llvmUtil("TableGen/Common"), "Common/", .{});
+        lib.installHeadersDirectory(
+            ctx.llvmUtil("TableGen/Common/GlobalISel"),
+            "Common/GlobalISel/",
+            .{},
+        );
+        // TODO: why is this necessary? installHeadersDirectory should add these folders to the include path, right?
+        lib.addIncludePath(ctx.llvmUtil("TableGen"));
+        break :block lib;
+    };
 
     // link libLLVMTableGen lib into executable
     const host_component_tblgen_exe = block: {
