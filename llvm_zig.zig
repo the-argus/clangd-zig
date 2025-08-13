@@ -509,7 +509,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
     };
 
     const llvm_core_lib = block: {
-        const lib = ctx.b.addLibrary(.{
+        const lib = addLLVMLibrary(ctx, .{
             .name = "llvmCore",
             .root_module = ctx.makeModule(),
         });
@@ -526,7 +526,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
     };
 
     const llvm_option_lib = block: {
-        const lib = ctx.b.addLibrary(.{
+        const lib = addLLVMLibrary(ctx, .{
             .name = "llvmOption",
             .root_module = ctx.makeModule(),
         });
@@ -544,7 +544,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
     };
 
     const llvm_target_parser_lib = block: {
-        const lib = ctx.b.addLibrary(.{
+        const lib = addLLVMLibrary(ctx, .{
             .name = "llvmTargetParser",
             .root_module = ctx.makeModule(),
         });
@@ -561,7 +561,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
     };
 
     const llvm_binary_format_lib = block: {
-        const lib = ctx.b.addLibrary(.{
+        const lib = addLLVMLibrary(ctx, .{
             .name = "llvmBinaryFormat",
             .root_module = ctx.makeModule(),
         });
@@ -579,7 +579,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
     };
 
     const llvm_bitstream_reader_lib = block: {
-        const lib = ctx.b.addLibrary(.{
+        const lib = addLLVMLibrary(ctx, .{
             .name = "llvmBitstreamReader",
             .root_module = ctx.makeModule(),
         });
@@ -598,7 +598,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
     };
 
     const llvm_bitcode_reader_lib = block: {
-        const lib = ctx.b.addLibrary(.{
+        const lib = addLLVMLibrary(ctx, .{
             .name = "llvmBitcodeReader",
             .root_module = ctx.makeModule(),
         });
@@ -620,7 +620,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
     };
 
     const llvm_object_lib = block: {
-        const lib = ctx.b.addLibrary(.{
+        const lib = addLLVMLibrary(ctx, .{
             .name = "llvmObject",
             .root_module = ctx.makeModule(),
         });
@@ -638,7 +638,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
     };
 
     const llvm_debug_info_msf_lib = block: {
-        const lib = ctx.b.addLibrary(.{
+        const lib = addLLVMLibrary(ctx, .{
             .name = "llvmDebugInfoMSF",
             .root_module = ctx.makeModule(),
         });
@@ -656,7 +656,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
     };
 
     const llvm_debug_info_codeview_lib = block: {
-        const lib = ctx.b.addLibrary(.{
+        const lib = addLLVMLibrary(ctx, .{
             .name = "llvmDebugInfoCodeView",
             .root_module = ctx.makeModule(),
         });
@@ -674,7 +674,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
     };
 
     const llvm_debug_info_btf_lib = block: {
-        const lib = ctx.b.addLibrary(.{
+        const lib = addLLVMLibrary(ctx, .{
             .name = "llvmDebugInfoBTF",
             .root_module = ctx.makeModule(),
         });
@@ -685,14 +685,16 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
 
-        lib.addIncludePath(tablegenerated_incs);
-        lib.addIncludePath(ctx.llvmInc("DebugInfo/BTF"));
-        lib.linkLibrary(llvm_support_lib);
+        Context.includeAll(lib, &.{
+            tablegenerated_incs,
+            ctx.llvmInc("DebugInfo/BTF"),
+        });
+        Context.linkAll(lib, &.{llvm_support_lib});
         break :block lib;
     };
 
     const llvm_debug_info_pdb_lib = block: {
-        const lib = ctx.b.addLibrary(.{
+        const lib = addLLVMLibrary(ctx, .{
             .name = "llvmDebugInfoPDB",
             .root_module = ctx.makeModule(),
         });
@@ -724,7 +726,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
     };
 
     const llvm_debug_info_dwarf_lib = block: {
-        const lib = ctx.b.addLibrary(.{
+        const lib = addLLVMLibrary(ctx, .{
             .name = "llvmDebugInfoDWARF",
             .root_module = ctx.makeModule(),
         });
@@ -746,7 +748,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
     };
 
     const llvm_debug_info_symbolize_lib = block: {
-        const lib = ctx.b.addLibrary(.{
+        const lib = addLLVMLibrary(ctx, .{
             .name = "llvmDebugInfoSymbolize",
             .root_module = ctx.makeModule(),
         });
@@ -770,7 +772,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
     };
 
     const llvm_profile_data_lib = block: {
-        const lib = ctx.b.addLibrary(.{
+        const lib = addLLVMLibrary(ctx, .{
             .name = "llvmProfileData",
             .root_module = ctx.makeModule(),
         });
@@ -794,7 +796,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
     };
 
     const llvm_analysis_lib = block: {
-        const lib = ctx.b.addLibrary(.{
+        const lib = addLLVMLibrary(ctx, .{
             .name = "llvmAnalysis",
             .root_module = ctx.makeModule(),
         });
@@ -816,7 +818,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
     };
 
     const llvm_transforms_utils_lib = block: {
-        const lib = ctx.b.addLibrary(.{
+        const lib = addLLVMLibrary(ctx, .{
             .name = "llvmFrontendOpenMP",
             .root_module = ctx.makeModule(),
         });
@@ -838,7 +840,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
     };
 
     const llvm_frontend_openmp_lib = block: {
-        const lib = ctx.b.addLibrary(.{
+        const lib = addLLVMLibrary(ctx, .{
             .name = "llvmFrontendOpenMP",
             .root_module = ctx.makeModule(),
         });
