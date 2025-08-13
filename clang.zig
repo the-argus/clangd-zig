@@ -1,11 +1,39 @@
 const std = @import("std");
 
 const Build = @import("build.zig");
+const LazyPath = std.Build.LazyPath;
+const ConfigHeader = std.Build.Step.ConfigHeader;
+const Compile = std.Build.Step.Compile;
 const Context = Build.Context;
 const sources = @import("clangd_sources.zig");
 
-fn compileSupportLib(ctx: *Context, module: *std.Build.Module) *std.Build.Step.Compile {
-    var out = ctx.addClangLibrary(.{
+pub const ClangExportedArtifacts = struct {
+    ast_lib: *Compile,
+    ast_matchers_lib: *Compile,
+    basic_lib: *Compile,
+    format_lib: *Compile,
+    lex_lib: *Compile,
+    tooling_core_lib: *Compile,
+    tooling_inclusions_lib: *Compile,
+    tooling_dependency_scanning_lib: *Compile,
+    driver_lib: *Compile,
+    frontend_lib: *Compile,
+    sema_lib: *Compile,
+    index_lib: *Compile,
+    serialization_lib: *Compile,
+    tooling_lib: *Compile,
+    tooling_syntax_lib: *Compile,
+    tooling_inclusions_stdlib_lib: *Compile,
+
+    basic_version_config_header: *ConfigHeader,
+    version_inc: LazyPath,
+    config_config_header: *ConfigHeader,
+    tablegenerated_incs: LazyPath,
+    phase2_tablegenerated_incs: LazyPath,
+};
+
+fn compileSupportLib(ctx: *const Context, module: *std.Build.Module) *Compile {
+    var out = addClangLibrary(ctx, .{
         .name = "clangSupport",
         .root_module = module,
     });
@@ -18,10 +46,32 @@ fn compileSupportLib(ctx: *Context, module: *std.Build.Module) *std.Build.Step.C
     return out;
 }
 
+var clang_headers: ?[]*ConfigHeader = null;
+var clang_include_paths: ?[]LazyPath = null;
+
+fn addClangIncludesAndConfigHeaders(ctx: *const Context, c: *Compile) void {
+    ctx.linkLLVM(c);
+    Context.configAll(c, clang_headers.?);
+    Context.includeAll(c, clang_include_paths.?);
+}
+
+fn addClangExecutable(ctx: *const Context, opts: std.Build.ExecutableOptions) *Compile {
+    const out = ctx.b.addExecutable(opts);
+    addClangIncludesAndConfigHeaders(ctx, out);
+    return out;
+}
+
+fn addClangLibrary(ctx: *const Context, options: std.Build.LibraryOptions) *Compile {
+    const out = ctx.b.addLibrary(options);
+    addClangIncludesAndConfigHeaders(ctx, out);
+    return out;
+}
+
 /// Fills out all the fields in Context.targets that start with clang_*
 /// Called from root build.zig
-pub fn build(ctx: *Context) void {
-    ctx.targets.clang_basic_version_config_header = ctx.b.addConfigHeader(
+pub fn build(ctx: *const Context) ClangExportedArtifacts {
+    const llvm = ctx.targets.llvm.?;
+    const basic_version_config_header = ctx.b.addConfigHeader(
         ctx.paths.clang.include.clang.basic.clang_basic_version_config_header.makeOptions(),
         .{
             .CLANG_VERSION = Build.version_string,
@@ -37,19 +87,19 @@ pub fn build(ctx: *Context) void {
     // llvm/cmake/modules/GenerateVersionFromVCS.cmake and called from
     // clang/lib/Basic/CMakeLists.txt
     // but I do not care right now
-    const vcs_version_inc = ctx.b.addWriteFile("VCSVersion.inc",
+    const vcs_version_inc_writefile = ctx.b.addWriteFile("VCSVersion.inc",
         \\#undef CLANG_REVISION
         \\#undef CLANG_REPOSITORY
         \\#undef LLVM_REVISION
         \\#undef LLVM_REPOSITORY
     );
-    ctx.targets.clang_version_inc = vcs_version_inc.getDirectory();
+    const version_inc = vcs_version_inc_writefile.getDirectory();
 
     if (!ctx.opts.clang_enable_static_analyzer and ctx.opts.clang_enable_arcmt) {
         @panic("Cannot disable static analyzer while enabling ARCMT or Z3");
     }
 
-    ctx.targets.clang_config_config_header = ctx.b.addConfigHeader(
+    const config_config_header = ctx.b.addConfigHeader(
         ctx.paths.clang.include.clang.config.config_config_header.makeOptions(),
         .{
             .BUG_REPORT_URL = Build.bug_report_url,
@@ -84,443 +134,545 @@ pub fn build(ctx: *Context) void {
         },
     );
 
-    ctx.targets.clang_host_component_support_lib = compileSupportLib(ctx, ctx.makeHostModule());
+    var headers = [_]*ConfigHeader{
+        basic_version_config_header,
+        config_config_header,
+    };
+    clang_headers = &headers;
+    var includes = [_]LazyPath{
+        ctx.srcPath("clang/include"),
+        version_inc,
+    };
+    clang_include_paths = &includes;
+
+    // naming these with clang_* because names are shared with llvm
+    const clang_host_component_support_lib = compileSupportLib(ctx, ctx.makeHostModule());
     // clang support also has llvm support and tablegen lib
-    ctx.targets.clang_host_component_support_lib.?.linkLibrary(ctx.targets.llvm_host_component_tablegen_lib.?);
+    clang_host_component_support_lib.linkLibrary(llvm.host_component_tablegen_lib);
 
-    ctx.targets.clang_support_lib = compileSupportLib(ctx, ctx.makeModule());
+    const clang_support_lib = compileSupportLib(ctx, ctx.makeModule());
 
-    ctx.targets.clang_host_component_tblgen_exe = ctx.addClangExecutable(.{
+    const clang_host_component_tblgen_exe = addClangExecutable(ctx, .{
         .name = "clang-tblgen",
         .root_module = ctx.makeHostModule(),
     });
-    ctx.targets.clang_host_component_tblgen_exe.?.addCSourceFiles(.{
+    clang_host_component_tblgen_exe.addCSourceFiles(.{
         .files = sources.clang_tablegen_cpp_files,
         .root = ctx.paths.clang.utils.tablegen.path,
         .flags = ctx.dupeGlobalFlags(),
         .language = .cpp,
     });
-    ctx.targets.clang_host_component_tblgen_exe.?.linkLibrary(ctx.targets.clang_host_component_support_lib.?);
+    clang_host_component_tblgen_exe.linkLibrary(clang_host_component_support_lib);
 
     const writefile_step = ctx.b.addWriteFiles();
     const writefile_step_phase2 = ctx.b.addWriteFiles();
 
     // generate all the needed .inc files and copy them into the subdir
     for (ctx.clang_tablegen_files) |desc| {
-        ctx.addTablegenOutputFileToWriteFileStep(writefile_step, ctx.targets.clang_host_component_tblgen_exe.?, desc);
+        ctx.addTablegenOutputFileToWriteFileStep(writefile_step, clang_host_component_tblgen_exe, desc);
     }
     for (ctx.clang_phase2_tablegen_files) |desc| {
-        ctx.addTablegenOutputFileToWriteFileStep(writefile_step_phase2, ctx.targets.clang_host_component_tblgen_exe.?, desc);
+        ctx.addTablegenOutputFileToWriteFileStep(writefile_step_phase2, clang_host_component_tblgen_exe, desc);
     }
-    ctx.targets.clang_tablegenerated_incs = writefile_step.getDirectory();
-    ctx.targets.clang_phase2_tablegenerated_incs = writefile_step_phase2.getDirectory();
+    const clang_tablegenerated_incs = writefile_step.getDirectory();
+    const clang_phase2_tablegenerated_incs = writefile_step_phase2.getDirectory();
 
-    {
-        ctx.targets.clang_basic_lib = ctx.addClangLibrary(.{
+    const clang_basic_lib = block: {
+        const lib = addClangLibrary(ctx, .{
             .name = "clangBasic",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.clang_basic_lib.?.addCSourceFiles(.{
-            .root = ctx.paths.clang.lib.basic.path,
+        lib.addCSourceFiles(.{
+            .root = ctx.srcPath("clang/lib/Basic"),
             .files = sources.clang_basic_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
-        ctx.targets.clang_basic_lib.?.addIncludePath(ctx.paths.clang.lib.basic.path);
-        ctx.targets.clang_basic_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
-        ctx.targets.clang_basic_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-    }
+        Context.includeAll(lib, &.{
+            ctx.srcPath("clang/lib/Basic"),
+            clang_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+        });
+        break :block lib;
+    };
 
-    {
-        ctx.targets.clang_api_notes_lib = ctx.addClangLibrary(.{
+    const clang_api_notes_lib = block: {
+        const lib = addClangLibrary(ctx, .{
             .name = "clangAPINotes",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.clang_api_notes_lib.?.addCSourceFiles(.{
-            .root = ctx.paths.clang.lib.api_notes.path,
+        lib.addCSourceFiles(.{
+            .root = ctx.srcPath("clang/lib/APINotes"),
             .files = sources.clang_api_notes_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
-        ctx.targets.clang_api_notes_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
-        ctx.targets.clang_api_notes_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.clang_api_notes_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
-    }
+        Context.includeAll(lib, &.{
+            clang_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+        });
+        lib.linkLibrary(clang_basic_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.clang_lex_lib = ctx.addClangLibrary(.{
+    const clang_lex_lib = block: {
+        const lib = addClangLibrary(ctx, .{
             .name = "clangLex",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.clang_lex_lib.?.addCSourceFiles(.{
-            .root = ctx.paths.clang.lib.lex.path,
+        lib.addCSourceFiles(.{
+            .root = ctx.srcPath("clang/lib/Lex"),
             .files = sources.clang_lex_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
-        ctx.targets.clang_lex_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
-        ctx.targets.clang_lex_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.clang_lex_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
-    }
+        Context.includeAll(lib, &.{
+            clang_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+        });
+        lib.linkLibrary(clang_basic_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.clang_ast_lib = ctx.addClangLibrary(.{
+    const clang_ast_lib = block: {
+        const lib = addClangLibrary(ctx, .{
             .name = "clangAST",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.clang_ast_lib.?.addCSourceFiles(.{
-            .root = ctx.paths.clang.lib.ast.path,
+        lib.addCSourceFiles(.{
+            .root = ctx.srcPath("clang/lib/AST"),
             .files = sources.clang_ast_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
-        ctx.targets.clang_ast_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
-        ctx.targets.clang_ast_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
-        ctx.targets.clang_ast_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.clang_ast_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
-        ctx.targets.clang_ast_lib.?.linkLibrary(ctx.targets.clang_lex_lib.?);
-    }
+        Context.includeAll(lib, &.{
+            clang_tablegenerated_incs,
+            clang_phase2_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+        });
+        lib.linkLibrary(clang_basic_lib);
+        lib.linkLibrary(clang_lex_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.clang_tooling_inclusions_stdlib_lib = ctx.addClangLibrary(.{
+    const clang_tooling_inclusions_stdlib_lib = block: {
+        const lib = addClangLibrary(ctx, .{
             .name = "clangToolingInclusionsStdlib",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.clang_tooling_inclusions_stdlib_lib.?.addCSourceFiles(.{
-            .root = ctx.paths.clang.lib.tooling.inclusions.stdlib.path,
+        lib.addCSourceFiles(.{
+            .root = ctx.srcPath("clang/lib/Tooling/Inclusions/StdLib"),
             .files = sources.clang_tooling_inclusions_stdlib_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
-        ctx.targets.clang_tooling_inclusions_stdlib_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
-        ctx.targets.clang_tooling_inclusions_stdlib_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.clang_tooling_inclusions_stdlib_lib.?.linkLibrary(ctx.targets.clang_ast_lib.?);
-    }
+        Context.includeAll(lib, &.{
+            clang_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+        });
+        lib.linkLibrary(clang_ast_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.clang_edit_lib = ctx.addClangLibrary(.{
+    const clang_edit_lib = block: {
+        const lib = addClangLibrary(ctx, .{
             .name = "clangEdit",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.clang_edit_lib.?.addCSourceFiles(.{
+        lib.addCSourceFiles(.{
             .root = ctx.paths.clang.lib.edit.path,
             .files = sources.clang_edit_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
-        ctx.targets.clang_edit_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
-        ctx.targets.clang_edit_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.clang_edit_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
-        ctx.targets.clang_edit_lib.?.linkLibrary(ctx.targets.clang_ast_lib.?);
-        ctx.targets.clang_edit_lib.?.linkLibrary(ctx.targets.clang_lex_lib.?);
-    }
+        Context.includeAll(lib, &.{
+            clang_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+        });
+        lib.linkLibrary(clang_basic_lib);
+        lib.linkLibrary(clang_ast_lib);
+        lib.linkLibrary(clang_lex_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.clang_ast_matchers_lib = ctx.addClangLibrary(.{
+    const clang_ast_matchers_lib = block: {
+        const lib = addClangLibrary(ctx, .{
             .name = "clangASTMatchers",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.clang_ast_matchers_lib.?.addCSourceFiles(.{
+        lib.addCSourceFiles(.{
             .root = ctx.paths.clang.lib.ast_matchers.path,
             .files = sources.clang_ast_matchers_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
-        ctx.targets.clang_ast_matchers_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
-        ctx.targets.clang_ast_matchers_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.clang_ast_matchers_lib.?.linkLibrary(ctx.targets.clang_ast_lib.?);
-        ctx.targets.clang_ast_matchers_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
-        ctx.targets.clang_ast_matchers_lib.?.linkLibrary(ctx.targets.clang_lex_lib.?);
-    }
+        Context.includeAll(lib, &.{
+            clang_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+        });
+        lib.linkLibrary(clang_ast_lib);
+        lib.linkLibrary(clang_basic_lib);
+        lib.linkLibrary(clang_lex_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.clang_analysis_lib = ctx.addClangLibrary(.{
+    const clang_analysis_lib = block: {
+        const lib = addClangLibrary(ctx, .{
             .name = "clangAnalysis",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.clang_analysis_lib.?.addCSourceFiles(.{
+        lib.addCSourceFiles(.{
             .root = ctx.paths.clang.lib.analysis.path,
             .files = sources.clang_analysis_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
-        ctx.targets.clang_analysis_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
-        ctx.targets.clang_analysis_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.clang_analysis_lib.?.linkLibrary(ctx.targets.clang_ast_lib.?);
-        ctx.targets.clang_analysis_lib.?.linkLibrary(ctx.targets.clang_ast_matchers_lib.?);
-        ctx.targets.clang_analysis_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
-        ctx.targets.clang_analysis_lib.?.linkLibrary(ctx.targets.clang_lex_lib.?);
-    }
+        Context.includeAll(lib, &.{
+            clang_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+        });
+        lib.linkLibrary(clang_ast_lib);
+        lib.linkLibrary(clang_ast_matchers_lib);
+        lib.linkLibrary(clang_basic_lib);
+        lib.linkLibrary(clang_lex_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.clang_sema_lib = ctx.addClangLibrary(.{
+    const clang_sema_lib = block: {
+        const lib = addClangLibrary(ctx, .{
             .name = "clangSema",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.clang_sema_lib.?.addCSourceFiles(.{
+        lib.addCSourceFiles(.{
             .root = ctx.paths.clang.lib.sema.path,
             .files = sources.clang_sema_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
-        ctx.targets.clang_sema_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
-        ctx.targets.clang_sema_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
-        ctx.targets.clang_sema_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.clang_sema_lib.?.linkLibrary(ctx.targets.clang_api_notes_lib.?);
-        ctx.targets.clang_sema_lib.?.linkLibrary(ctx.targets.clang_ast_lib.?);
-        ctx.targets.clang_sema_lib.?.linkLibrary(ctx.targets.clang_analysis_lib.?);
-        ctx.targets.clang_sema_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
-        ctx.targets.clang_sema_lib.?.linkLibrary(ctx.targets.clang_edit_lib.?);
-        ctx.targets.clang_sema_lib.?.linkLibrary(ctx.targets.clang_lex_lib.?);
-        ctx.targets.clang_sema_lib.?.linkLibrary(ctx.targets.clang_support_lib.?);
-    }
+        Context.includeAll(lib, &.{
+            clang_tablegenerated_incs,
+            clang_phase2_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+        });
+        lib.linkLibrary(clang_api_notes_lib);
+        lib.linkLibrary(clang_ast_lib);
+        lib.linkLibrary(clang_analysis_lib);
+        lib.linkLibrary(clang_basic_lib);
+        lib.linkLibrary(clang_edit_lib);
+        lib.linkLibrary(clang_lex_lib);
+        lib.linkLibrary(clang_support_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.clang_serialization_lib = ctx.addClangLibrary(.{
+    const clang_serialization_lib = block: {
+        const lib = addClangLibrary(ctx, .{
             .name = "clangSerialization",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.clang_serialization_lib.?.addCSourceFiles(.{
+        lib.addCSourceFiles(.{
             .root = ctx.paths.clang.lib.serialization.path,
             .files = sources.clang_serialization_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
-        ctx.targets.clang_serialization_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
-        ctx.targets.clang_serialization_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.clang_serialization_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
-        ctx.targets.clang_serialization_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
-        ctx.targets.clang_serialization_lib.?.linkLibrary(ctx.targets.clang_ast_lib.?);
-        ctx.targets.clang_serialization_lib.?.linkLibrary(ctx.targets.clang_lex_lib.?);
-        ctx.targets.clang_serialization_lib.?.linkLibrary(ctx.targets.clang_sema_lib.?);
-    }
+        Context.includeAll(lib, &.{
+            clang_tablegenerated_incs,
+            clang_phase2_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+        });
+        lib.linkLibrary(clang_basic_lib);
+        lib.linkLibrary(clang_ast_lib);
+        lib.linkLibrary(clang_lex_lib);
+        lib.linkLibrary(clang_sema_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.clang_parse_lib = ctx.addClangLibrary(.{
+    const clang_parse_lib = block: {
+        const lib = addClangLibrary(ctx, .{
             .name = "clangParse",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.clang_parse_lib.?.addCSourceFiles(.{
+        lib.addCSourceFiles(.{
             .root = ctx.paths.clang.lib.parse.path,
             .files = sources.clang_parse_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
-        ctx.targets.clang_parse_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
-        ctx.targets.clang_parse_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
-        ctx.targets.clang_parse_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.clang_parse_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
-        ctx.targets.clang_parse_lib.?.linkLibrary(ctx.targets.clang_ast_lib.?);
-        ctx.targets.clang_parse_lib.?.linkLibrary(ctx.targets.clang_lex_lib.?);
-        ctx.targets.clang_parse_lib.?.linkLibrary(ctx.targets.clang_sema_lib.?);
-    }
+        Context.includeAll(lib, &.{
+            clang_tablegenerated_incs,
+            clang_phase2_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+        });
+        lib.linkLibrary(clang_basic_lib);
+        lib.linkLibrary(clang_ast_lib);
+        lib.linkLibrary(clang_lex_lib);
+        lib.linkLibrary(clang_sema_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.clang_driver_lib = ctx.addClangLibrary(.{
+    const clang_driver_lib = block: {
+        const lib = addClangLibrary(ctx, .{
             .name = "clangDriver",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.clang_driver_lib.?.addCSourceFiles(.{
+        lib.addCSourceFiles(.{
             .root = ctx.paths.clang.lib.driver.path,
             .files = sources.clang_driver_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
-        ctx.targets.clang_driver_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
-        ctx.targets.clang_driver_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
-        ctx.targets.clang_driver_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.clang_driver_lib.?.addIncludePath(ctx.paths.clang.lib.driver.path);
-        ctx.targets.clang_driver_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
-    }
+        Context.includeAll(lib, &.{
+            clang_tablegenerated_incs,
+            clang_phase2_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+            ctx.paths.clang.lib.driver.path,
+        });
+        lib.linkLibrary(clang_basic_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.clang_frontend_lib = ctx.addClangLibrary(.{
+    const clang_frontend_lib = block: {
+        const lib = addClangLibrary(ctx, .{
             .name = "clangFrontend",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.clang_frontend_lib.?.addCSourceFiles(.{
+        lib.addCSourceFiles(.{
             .root = ctx.paths.clang.lib.frontend.path,
             .files = sources.clang_frontend_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
-        ctx.targets.clang_frontend_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
-        ctx.targets.clang_frontend_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
-        ctx.targets.clang_frontend_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        Context.includeAll(lib, &.{
+            clang_tablegenerated_incs,
+            clang_phase2_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+        });
 
-        ctx.targets.clang_frontend_lib.?.linkLibrary(ctx.targets.clang_api_notes_lib.?);
-        ctx.targets.clang_frontend_lib.?.linkLibrary(ctx.targets.clang_ast_lib.?);
-        ctx.targets.clang_frontend_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
-        ctx.targets.clang_frontend_lib.?.linkLibrary(ctx.targets.clang_driver_lib.?);
-        ctx.targets.clang_frontend_lib.?.linkLibrary(ctx.targets.clang_edit_lib.?);
-        ctx.targets.clang_frontend_lib.?.linkLibrary(ctx.targets.clang_lex_lib.?);
-        ctx.targets.clang_frontend_lib.?.linkLibrary(ctx.targets.clang_parse_lib.?);
-        ctx.targets.clang_frontend_lib.?.linkLibrary(ctx.targets.clang_sema_lib.?);
-        ctx.targets.clang_frontend_lib.?.linkLibrary(ctx.targets.clang_serialization_lib.?);
-    }
+        lib.linkLibrary(clang_api_notes_lib);
+        lib.linkLibrary(clang_ast_lib);
+        lib.linkLibrary(clang_basic_lib);
+        lib.linkLibrary(clang_driver_lib);
+        lib.linkLibrary(clang_edit_lib);
+        lib.linkLibrary(clang_lex_lib);
+        lib.linkLibrary(clang_parse_lib);
+        lib.linkLibrary(clang_sema_lib);
+        lib.linkLibrary(clang_serialization_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.clang_rewrite_lib = ctx.addClangLibrary(.{
+    const clang_rewrite_lib = block: {
+        const lib = addClangLibrary(ctx, .{
             .name = "clangRewrite",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.clang_rewrite_lib.?.addCSourceFiles(.{
+        lib.addCSourceFiles(.{
             .root = ctx.paths.clang.lib.rewrite.path,
             .files = sources.clang_rewrite_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
-        ctx.targets.clang_rewrite_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
-        ctx.targets.clang_rewrite_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.clang_rewrite_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
-        ctx.targets.clang_rewrite_lib.?.linkLibrary(ctx.targets.clang_lex_lib.?);
-    }
+        Context.includeAll(lib, &.{
+            clang_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+        });
+        lib.linkLibrary(clang_basic_lib);
+        lib.linkLibrary(clang_lex_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.clang_tooling_core_lib = ctx.addClangLibrary(.{
+    const clang_tooling_core_lib = block: {
+        const lib = addClangLibrary(ctx, .{
             .name = "clangToolingCore",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.clang_tooling_core_lib.?.addCSourceFiles(.{
+        lib.addCSourceFiles(.{
             .root = ctx.paths.clang.lib.tooling.core.path,
             .files = sources.clang_tooling_core_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
-        ctx.targets.clang_tooling_core_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
-        ctx.targets.clang_tooling_core_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.clang_tooling_core_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
-        ctx.targets.clang_tooling_core_lib.?.linkLibrary(ctx.targets.clang_lex_lib.?);
-        ctx.targets.clang_tooling_core_lib.?.linkLibrary(ctx.targets.clang_rewrite_lib.?);
-    }
+        Context.includeAll(lib, &.{
+            clang_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+        });
+        lib.linkLibrary(clang_basic_lib);
+        lib.linkLibrary(clang_lex_lib);
+        lib.linkLibrary(clang_rewrite_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.clang_tooling_inclusions_lib = ctx.addClangLibrary(.{
+    const clang_tooling_inclusions_lib = block: {
+        const lib = addClangLibrary(ctx, .{
             .name = "clangToolingInclusions",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.clang_tooling_inclusions_lib.?.addCSourceFiles(.{
+        lib.addCSourceFiles(.{
             .root = ctx.paths.clang.lib.tooling.inclusions.path,
             .files = sources.clang_tooling_inclusions_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
-        ctx.targets.clang_tooling_inclusions_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
-        ctx.targets.clang_tooling_inclusions_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.clang_tooling_inclusions_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
-        ctx.targets.clang_tooling_inclusions_lib.?.linkLibrary(ctx.targets.clang_lex_lib.?);
-        ctx.targets.clang_tooling_inclusions_lib.?.linkLibrary(ctx.targets.clang_tooling_core_lib.?);
-    }
+        Context.includeAll(lib, &.{
+            clang_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+        });
+        lib.linkLibrary(clang_basic_lib);
+        lib.linkLibrary(clang_lex_lib);
+        lib.linkLibrary(clang_tooling_core_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.clang_format_lib = ctx.addClangLibrary(.{
+    const clang_format_lib = block: {
+        const lib = addClangLibrary(ctx, .{
             .name = "clangFormat",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.clang_format_lib.?.addCSourceFiles(.{
+        lib.addCSourceFiles(.{
             .root = ctx.paths.clang.lib.format.path,
             .files = sources.clang_format_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
-        ctx.targets.clang_format_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
-        ctx.targets.clang_format_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.clang_format_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
-        ctx.targets.clang_format_lib.?.linkLibrary(ctx.targets.clang_lex_lib.?);
-        ctx.targets.clang_format_lib.?.linkLibrary(ctx.targets.clang_tooling_core_lib.?);
-        ctx.targets.clang_format_lib.?.linkLibrary(ctx.targets.clang_tooling_inclusions_lib.?);
-    }
+        Context.includeAll(lib, &.{
+            clang_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+        });
+        lib.linkLibrary(clang_basic_lib);
+        lib.linkLibrary(clang_lex_lib);
+        lib.linkLibrary(clang_tooling_core_lib);
+        lib.linkLibrary(clang_tooling_inclusions_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.clang_index_lib = ctx.addClangLibrary(.{
+    const clang_index_lib = block: {
+        const lib = addClangLibrary(ctx, .{
             .name = "clangIndex",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.clang_index_lib.?.addCSourceFiles(.{
+        lib.addCSourceFiles(.{
             .root = ctx.paths.clang.lib.index.path,
             .files = sources.clang_index_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
-        ctx.targets.clang_index_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
-        ctx.targets.clang_index_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
-        ctx.targets.clang_index_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.clang_index_lib.?.linkLibrary(ctx.targets.clang_ast_lib.?);
-        ctx.targets.clang_index_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
-        ctx.targets.clang_index_lib.?.linkLibrary(ctx.targets.clang_format_lib.?);
-        ctx.targets.clang_index_lib.?.linkLibrary(ctx.targets.clang_frontend_lib.?);
-        ctx.targets.clang_index_lib.?.linkLibrary(ctx.targets.clang_lex_lib.?);
-        ctx.targets.clang_index_lib.?.linkLibrary(ctx.targets.clang_serialization_lib.?);
-        ctx.targets.clang_index_lib.?.linkLibrary(ctx.targets.clang_tooling_core_lib.?);
-    }
+        Context.includeAll(lib, &.{
+            clang_tablegenerated_incs,
+            clang_phase2_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+        });
+        lib.linkLibrary(clang_ast_lib);
+        lib.linkLibrary(clang_basic_lib);
+        lib.linkLibrary(clang_format_lib);
+        lib.linkLibrary(clang_frontend_lib);
+        lib.linkLibrary(clang_lex_lib);
+        lib.linkLibrary(clang_serialization_lib);
+        lib.linkLibrary(clang_tooling_core_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.clang_tooling_syntax_lib = ctx.addClangLibrary(.{
+    const clang_tooling_syntax_lib = block: {
+        const lib = addClangLibrary(ctx, .{
             .name = "clangToolingSyntax",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.clang_tooling_syntax_lib.?.addCSourceFiles(.{
+        lib.addCSourceFiles(.{
             .root = ctx.paths.clang.lib.tooling.syntax.path,
             .files = sources.clang_tooling_syntax_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
-        ctx.targets.clang_tooling_syntax_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
-        ctx.targets.clang_tooling_syntax_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
-        ctx.targets.clang_tooling_syntax_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.clang_tooling_syntax_lib.?.linkLibrary(ctx.targets.clang_ast_lib.?);
-        ctx.targets.clang_tooling_syntax_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
-        ctx.targets.clang_tooling_syntax_lib.?.linkLibrary(ctx.targets.clang_frontend_lib.?);
-        ctx.targets.clang_tooling_syntax_lib.?.linkLibrary(ctx.targets.clang_lex_lib.?);
-        ctx.targets.clang_tooling_syntax_lib.?.linkLibrary(ctx.targets.clang_tooling_core_lib.?);
-    }
+        Context.includeAll(lib, &.{
+            clang_tablegenerated_incs,
+            clang_phase2_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+        });
+        lib.linkLibrary(clang_ast_lib);
+        lib.linkLibrary(clang_basic_lib);
+        lib.linkLibrary(clang_frontend_lib);
+        lib.linkLibrary(clang_lex_lib);
+        lib.linkLibrary(clang_tooling_core_lib);
+        break :block lib;
+    };
 
-    {
-        ctx.targets.clang_tooling_lib = ctx.addClangLibrary(.{
+    const clang_tooling_lib = block: {
+        const lib = addClangLibrary(ctx, .{
             .name = "clangTooling",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.clang_tooling_lib.?.addCSourceFiles(.{
+        lib.addCSourceFiles(.{
             .root = ctx.paths.clang.lib.tooling.path,
             .files = sources.clang_tooling_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
-        ctx.targets.clang_tooling_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
-        ctx.targets.clang_tooling_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
-        ctx.targets.clang_tooling_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.clang_tooling_lib.?.linkLibrary(ctx.targets.clang_ast_lib.?);
-        ctx.targets.clang_tooling_lib.?.linkLibrary(ctx.targets.clang_ast_matchers_lib.?);
-        ctx.targets.clang_tooling_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
-        ctx.targets.clang_tooling_lib.?.linkLibrary(ctx.targets.clang_driver_lib.?);
-        ctx.targets.clang_tooling_lib.?.linkLibrary(ctx.targets.clang_format_lib.?);
-        ctx.targets.clang_tooling_lib.?.linkLibrary(ctx.targets.clang_frontend_lib.?);
-        ctx.targets.clang_tooling_lib.?.linkLibrary(ctx.targets.clang_lex_lib.?);
-        ctx.targets.clang_tooling_lib.?.linkLibrary(ctx.targets.clang_rewrite_lib.?);
-        ctx.targets.clang_tooling_lib.?.linkLibrary(ctx.targets.clang_serialization_lib.?);
-        ctx.targets.clang_tooling_lib.?.linkLibrary(ctx.targets.clang_tooling_core_lib.?);
-    }
+        Context.includeAll(lib, &.{
+            clang_tablegenerated_incs,
+            clang_phase2_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+        });
+        Context.linkAll(lib, &.{
+            clang_ast_lib,
+            clang_ast_matchers_lib,
+            clang_ast_lib,
+            clang_ast_matchers_lib,
+            clang_basic_lib,
+            clang_driver_lib,
+            clang_format_lib,
+            clang_frontend_lib,
+            clang_lex_lib,
+            clang_rewrite_lib,
+            clang_serialization_lib,
+            clang_tooling_core_lib,
+        });
+        break :block lib;
+    };
 
-    {
-        ctx.targets.clang_tooling_dependency_scanning_lib = ctx.addClangLibrary(.{
+    const clang_tooling_dependency_scanning_lib = block: {
+        const lib = addClangLibrary(ctx, .{
             .name = "clangDependencyScanning",
             .root_module = ctx.makeModule(),
         });
-        ctx.targets.clang_tooling_dependency_scanning_lib.?.addCSourceFiles(.{
+        lib.addCSourceFiles(.{
             .root = ctx.paths.clang.lib.tooling.dependency_scanning.path,
             .files = sources.clang_tooling_dependency_scanning_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
-        ctx.targets.clang_tooling_dependency_scanning_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
-        ctx.targets.clang_tooling_dependency_scanning_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
-        ctx.targets.clang_tooling_dependency_scanning_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-        ctx.targets.clang_tooling_dependency_scanning_lib.?.linkLibrary(ctx.targets.clang_ast_lib.?);
-        ctx.targets.clang_tooling_dependency_scanning_lib.?.linkLibrary(ctx.targets.clang_basic_lib.?);
-        ctx.targets.clang_tooling_dependency_scanning_lib.?.linkLibrary(ctx.targets.clang_driver_lib.?);
-        ctx.targets.clang_tooling_dependency_scanning_lib.?.linkLibrary(ctx.targets.clang_frontend_lib.?);
-        ctx.targets.clang_tooling_dependency_scanning_lib.?.linkLibrary(ctx.targets.clang_lex_lib.?);
-        ctx.targets.clang_tooling_dependency_scanning_lib.?.linkLibrary(ctx.targets.clang_serialization_lib.?);
-        ctx.targets.clang_tooling_dependency_scanning_lib.?.linkLibrary(ctx.targets.clang_tooling_lib.?);
-    }
+        lib.addIncludePath(clang_tablegenerated_incs);
+        lib.addIncludePath(clang_phase2_tablegenerated_incs);
+        lib.addIncludePath(llvm.tablegenerated_incs);
+        lib.linkLibrary(clang_ast_lib);
+        lib.linkLibrary(clang_basic_lib);
+        lib.linkLibrary(clang_driver_lib);
+        lib.linkLibrary(clang_frontend_lib);
+        lib.linkLibrary(clang_lex_lib);
+        lib.linkLibrary(clang_serialization_lib);
+        lib.linkLibrary(clang_tooling_lib);
+        break :block lib;
+    };
+
+    return ClangExportedArtifacts{
+        .ast_lib = clang_ast_lib,
+        .ast_matchers_lib = clang_ast_matchers_lib,
+        .basic_lib = clang_basic_lib,
+        .format_lib = clang_format_lib,
+        .lex_lib = clang_lex_lib,
+        .tooling_core_lib = clang_tooling_core_lib,
+        .tooling_inclusions_lib = clang_tooling_inclusions_lib,
+        .tooling_dependency_scanning_lib = clang_tooling_dependency_scanning_lib,
+        .driver_lib = clang_driver_lib,
+        .frontend_lib = clang_frontend_lib,
+        .sema_lib = clang_sema_lib,
+        .index_lib = clang_index_lib,
+        .serialization_lib = clang_serialization_lib,
+        .tooling_lib = clang_tooling_lib,
+        .tooling_syntax_lib = clang_tooling_syntax_lib,
+        .tooling_inclusions_stdlib_lib = clang_tooling_inclusions_stdlib_lib,
+
+        .version_inc = version_inc,
+        .config_config_header = config_config_header,
+        .basic_version_config_header = basic_version_config_header,
+        .tablegenerated_incs = clang_tablegenerated_incs,
+        .phase2_tablegenerated_incs = clang_phase2_tablegenerated_incs,
+    };
 }

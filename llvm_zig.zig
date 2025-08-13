@@ -3,10 +3,60 @@ const builtin = @import("builtin");
 
 const Build = @import("build.zig");
 const Context = Build.Context;
+const LazyPath = std.Build.LazyPath;
+const ConfigHeader = std.Build.Step.ConfigHeader;
+const Compile = std.Build.Step.Compile;
 const ABIBreakingChecks = Build.ABIBreakingChecks;
 const version = Build.version;
 const version_string = Build.version_string;
 const sources = @import("clangd_sources.zig");
+
+pub const LLVMExportedArtifacts = struct {
+    support_lib: *Compile,
+    frontend_openmp_lib: *Compile,
+    option_lib: *Compile,
+    target_parser_lib: *Compile,
+    // all_targets_infos_lib: *Compile,
+
+    // llvm/include/llvm/Config/llvm-config.h.cmake
+    public_config_header: *ConfigHeader,
+    // llvm/include/llvm/Config/config.h.cmake
+    //private_config_header: *ConfigHeader,
+    // llvm/include/llvm/Config/abi-breaking.h.cmake
+    abi_breaking_config_header: *ConfigHeader,
+    features_inc_config_header: *ConfigHeader,
+    targets_def_config_header: *ConfigHeader,
+    asm_parsers_def_config_header: *ConfigHeader,
+    asm_printers_def_config_header: *ConfigHeader,
+    disassemblers_def_config_header: *ConfigHeader,
+    target_exegesis_def_config_header: *ConfigHeader,
+    target_mcas_def_config_header: *ConfigHeader,
+
+    host_component_demangle_lib: *Compile,
+    host_component_support_lib: *Compile,
+    host_component_tablegen_lib: *Compile,
+    host_component_tblgen_exe: *Compile,
+
+    tablegenerated_incs: LazyPath,
+
+    // llvm_demangle_lib: ?*Compile = null,
+    // llvm_binary_format_lib: ?*Compile = null,
+    // llvm_remarks_lib: ?*Compile = null,
+    // llvm_object_lib: ?*Compile = null,
+    // llvm_core_lib: ?*Compile = null,
+    // llvm_analysis_lib: ?*Compile = null,
+    // llvm_bitcode_reader_lib: ?*Compile = null,
+    // llvm_bitcode_writer_lib: ?*Compile = null,
+    // llvm_bitstream_reader_lib: ?*Compile = null,
+    // llvm_transforms_utils_lib: ?*Compile = null,
+    // llvm_debug_info_btf_lib: ?*Compile = null,
+    // llvm_debug_info_codeview_lib: ?*Compile = null,
+    // llvm_debug_info_dwarf_lib: ?*Compile = null,
+    // llvm_debug_info_msf_lib: ?*Compile = null,
+    // llvm_debug_info_pdb_lib: ?*Compile = null,
+    // llvm_debug_info_symbolize_lib: ?*Compile = null,
+    // llvm_profile_data_lib: ?*Compile = null,
+};
 
 const llvm_all_targets = &[_][]const u8{
     "AArch64",
@@ -36,15 +86,42 @@ const llvm_native_arch = getLLVMNativeArch(builtin.cpu.arch);
 
 // underscore because starting a function with llvm makes llvm thing we're
 // trying to define an intrinsic
-fn llvmTargetToolString(ctx: *Context, str: []const u8) []const u8 {
+fn llvmTargetToolString(ctx: *const Context, str: []const u8) []const u8 {
     return ctx.b.fmt("LLVMInitialize{s}{s}", .{ llvm_native_arch, str });
+}
+
+var llvm_headers: ?[]*std.Build.Step.ConfigHeader = null;
+var llvm_include_paths: ?[]LazyPath = null;
+
+fn llvmLink(c: *Compile) void {
+    c.linkLibCpp();
+    Context.configAll(c, llvm_headers.?);
+    Context.includeAll(c, llvm_include_paths.?);
+}
+
+fn addLLVMLibrary(ctx: *const Context, options: std.Build.LibraryOptions) *Compile {
+    const out = ctx.b.addLibrary(options);
+    llvmLink(out);
+    return out;
+}
+
+fn addLLVMExecutable(ctx: *const Context, options: std.Build.ExecutableOptions) *Compile {
+    const out = ctx.b.addExecutable(options);
+    llvmLink(out);
+    return out;
+}
+
+fn addLLVMObject(ctx: *const Context, options: std.Build.ObjectOptions) *Compile {
+    const out = ctx.b.addObject(options);
+    llvmLink(out);
+    return out;
 }
 
 /// Fills out all the fields in Context.targets that start with llvm_*, pulling
 /// from Context.options. called from root build.zig
-pub fn build(ctx: *Context) void {
+pub fn build(ctx: *const Context) LLVMExportedArtifacts {
     const abi_breaking_opts = ctx.paths.llvm.include.llvm.config.llvm_abi_breaking_config_header.makeOptions();
-    ctx.targets.llvm_abi_breaking_config_header = ctx.b.addConfigHeader(abi_breaking_opts, .{
+    const abi_breaking_config_header = ctx.b.addConfigHeader(abi_breaking_opts, .{
         .LLVM_ENABLE_REVERSE_ITERATION = ctx.opts.llvm_reverse_iteration,
         .LLVM_ENABLE_ABI_BREAKING_CHECKS = std.enums.tagName(
             ABIBreakingChecks,
@@ -52,7 +129,7 @@ pub fn build(ctx: *Context) void {
         ),
     });
 
-    ctx.targets.llvm_features_inc_config_header = ctx.b.addConfigHeader(
+    const features_inc_config_header = ctx.b.addConfigHeader(
         .{ .style = .{ .cmake = ctx.srcPath("clang-tools-extra/clangd/Features.inc.in") }, .include_path = "Features.inc" },
         .{
             .CLANGD_BUILD_XPC = ctx.opts.clangd_build_xpc,
@@ -65,7 +142,7 @@ pub fn build(ctx: *Context) void {
     );
 
     const public_opts = ctx.paths.llvm.include.llvm.config.llvm_public_config_header.makeOptions();
-    ctx.targets.llvm_public_config_header = ctx.b.addConfigHeader(public_opts, .{
+    const public_config_header = ctx.b.addConfigHeader(public_opts, .{
         // render_cmake in ConfigHeader niceley interprets these correctly
         .LLVM_ENABLE_DUMP = ctx.opts.llvm_enable_dump,
         .LLVM_DEFAULT_TARGET_TRIPLE = ctx.opts.llvm_default_target_triple,
@@ -133,7 +210,7 @@ pub fn build(ctx: *Context) void {
                 ctx.opts.supported_targets,
                 field.name,
             ), target_field.name);
-            ctx.targets.llvm_public_config_header.?.addValue(field_name, bool, is_supported);
+            public_config_header.addValue(field_name, bool, is_supported);
 
             if (is_supported) {
                 const Set = std.static_string_map.StaticStringMap(void);
@@ -161,37 +238,37 @@ pub fn build(ctx: *Context) void {
         }
     }
 
-    ctx.targets.llvm_targets_def_config_header = ctx.b.addConfigHeader(
+    const targets_def_config_header = ctx.b.addConfigHeader(
         ctx.paths.llvm.include.llvm.config.llvm_targets_def_config_header.makeOptions(),
         .{
             .LLVM_ENUM_TARGETS = supported_targets.toOwnedSlice() catch @panic("OOM"),
         },
     );
-    ctx.targets.llvm_asm_printers_def_config_header = ctx.b.addConfigHeader(
+    const asm_printers_def_config_header = ctx.b.addConfigHeader(
         ctx.paths.llvm.include.llvm.config.llvm_asm_printers_def_config_header.makeOptions(),
         .{
             .LLVM_ENUM_ASM_PRINTERS = enum_asm_printers.toOwnedSlice() catch @panic("OOM"),
         },
     );
-    ctx.targets.llvm_asm_parsers_def_config_header = ctx.b.addConfigHeader(
+    const asm_parsers_def_config_header = ctx.b.addConfigHeader(
         ctx.paths.llvm.include.llvm.config.llvm_asm_parsers_def_config_header.makeOptions(),
         .{
             .LLVM_ENUM_ASM_PARSERS = enum_asm_parsers.toOwnedSlice() catch @panic("OOM"),
         },
     );
-    ctx.targets.llvm_disassemblers_def_config_header = ctx.b.addConfigHeader(
+    const disassemblers_def_config_header = ctx.b.addConfigHeader(
         ctx.paths.llvm.include.llvm.config.llvm_disassemblers_def_config_header.makeOptions(),
         .{
             .LLVM_ENUM_DISASSEMBLERS = enum_disassemblers.toOwnedSlice() catch @panic("OOM"),
         },
     );
-    ctx.targets.llvm_target_exegesis_def_config_header = ctx.b.addConfigHeader(
+    const target_exegesis_def_config_header = ctx.b.addConfigHeader(
         ctx.paths.llvm.include.llvm.config.llvm_target_exegesis_def_config_header.makeOptions(),
         .{
             .LLVM_ENUM_EXEGESIS = enum_exegesis.toOwnedSlice() catch @panic("OOM"),
         },
     );
-    ctx.targets.llvm_target_mcas_def_config_header = ctx.b.addConfigHeader(
+    const target_mcas_def_config_header = ctx.b.addConfigHeader(
         ctx.paths.llvm.include.llvm.config.llvm_target_mcas_def_config_header.makeOptions(),
         .{
             .LLVM_ENUM_TARGETMCAS = enum_mcas.toOwnedSlice() catch @panic("OOM"),
@@ -200,7 +277,7 @@ pub fn build(ctx: *Context) void {
 
     const private_opts = ctx.paths.llvm.include.llvm.config.llvm_private_config_header.makeOptions();
     const target = ctx.module_opts.target.?.result;
-    ctx.targets.llvm_private_config_header = ctx.b.addConfigHeader(private_opts, .{
+    const private_config_header = ctx.b.addConfigHeader(private_opts, .{
         .BUG_REPORT_URL = Build.bug_report_url,
         .ENABLE_BACKTRACES = false,
         .ENABLE_CRASH_OVERRIDES = false,
@@ -298,117 +375,138 @@ pub fn build(ctx: *Context) void {
         .HAVE_BUILTIN_THREAD_POINTER = false,
     });
 
+    var headers = [_]*ConfigHeader{
+        public_config_header,
+        private_config_header,
+        abi_breaking_config_header,
+        features_inc_config_header,
+        targets_def_config_header,
+        asm_parsers_def_config_header,
+        disassemblers_def_config_header,
+        asm_printers_def_config_header,
+        target_exegesis_def_config_header,
+        target_mcas_def_config_header,
+    };
+    llvm_headers = &headers;
+    var include_paths = [_]LazyPath{
+        ctx.srcPath("llvm/include"),
+    };
+    llvm_include_paths = &include_paths;
+
     const hostOptions = std.Build.Module.CreateOptions{
         .optimize = .Debug,
         .target = ctx.b.graph.host,
     };
     const targetOptions = ctx.module_opts;
 
-    ctx.targets.llvm_host_component_demangle_lib = buildDemangle(ctx, hostOptions);
+    const host_component_demangle_lib = buildDemangle(ctx, hostOptions);
     const llvm_demangle_lib = buildDemangle(ctx, targetOptions);
 
     // depends on demangle lib along with the abi-breaking, public and private config headers
-    ctx.targets.llvm_host_component_support_lib = @import("llvm_zig_support.zig").build(ctx, hostOptions);
-    ctx.targets.llvm_host_component_support_lib.?.linkLibrary(ctx.targets.llvm_host_component_demangle_lib.?);
-    const llvm_support_lib = @import("llvm_zig_support.zig").build(ctx, targetOptions);
+    const host_component_support_lib = buildSupport(ctx, hostOptions);
+    host_component_support_lib.linkLibrary(host_component_demangle_lib);
+    const llvm_support_lib = buildSupport(ctx, targetOptions);
     llvm_support_lib.linkLibrary(llvm_demangle_lib);
 
     // build llvm tablegen lib
-    ctx.targets.llvm_host_component_tablegen_lib = ctx.addLLVMLibrary(.{
+    const host_component_tablegen_lib = addLLVMLibrary(ctx, .{
         .name = "LLVMTableGen",
         .root_module = ctx.makeHostModule(),
     });
-    ctx.targets.llvm_host_component_tablegen_lib.?.addCSourceFiles(.{
+    host_component_tablegen_lib.addCSourceFiles(.{
         .root = ctx.llvmLib("TableGen"),
         .files = sources.llvm_tablegen_lib_cpp_files,
         .flags = ctx.dupeGlobalFlags(),
         .language = .cpp,
     });
-    ctx.targets.llvm_host_component_tablegen_lib.?.addIncludePath(ctx.llvmLib("TableGen"));
-    ctx.targets.llvm_host_component_tablegen_lib.?.linkLibrary(ctx.targets.llvm_host_component_support_lib.?);
+    host_component_tablegen_lib.addIncludePath(ctx.llvmLib("TableGen"));
+    host_component_tablegen_lib.linkLibrary(host_component_support_lib);
 
-    ctx.targets.llvm_host_component_tblgen_basic_lib = ctx.addLLVMObject(.{
+    const host_component_tblgen_basic_lib = addLLVMObject(ctx, .{
         .name = "LLVMTableGenBasic",
         .root_module = ctx.makeHostModule(),
     });
-    ctx.targets.llvm_host_component_tblgen_basic_lib.?.addCSourceFiles(.{
+    host_component_tblgen_basic_lib.addCSourceFiles(.{
         .root = ctx.srcPath("llvm/utils/TableGen/Basic"),
         .files = sources.llvm_tablegen_basic_lib_cpp_files,
         .flags = ctx.dupeGlobalFlags(),
         .language = .cpp,
     });
-    ctx.targets.llvm_host_component_tblgen_basic_lib.?.linkLibrary(ctx.targets.llvm_host_component_tablegen_lib.?);
-    ctx.targets.llvm_host_component_tblgen_basic_lib.?.installHeadersDirectory(ctx.srcPath("llvm/utils/TableGen/Basic"), "Basic/", .{});
+    host_component_tblgen_basic_lib.linkLibrary(host_component_tablegen_lib);
+    host_component_tblgen_basic_lib.installHeadersDirectory(ctx.srcPath("llvm/utils/TableGen/Basic"), "Basic/", .{});
 
     // create llvm-min-tablgen to bootstrap regular llvm tablegen
-    ctx.targets.llvm_host_component_tblgen_min_exe = ctx.addLLVMExecutable(.{
+    const host_component_tblgen_min_exe = addLLVMExecutable(ctx, .{
         .name = "llvm-min-tablgen",
         .root_module = ctx.makeHostModule(),
     });
-    ctx.targets.llvm_host_component_tblgen_min_exe.?.addCSourceFiles(.{
+    host_component_tblgen_min_exe.addCSourceFiles(.{
         .root = ctx.srcPath("llvm/utils/TableGen"),
         .flags = ctx.dupeGlobalFlags(),
         .files = sources.llvm_min_tablegen_cpp_files,
         .language = .cpp,
     });
-    ctx.targets.llvm_host_component_tblgen_min_exe.?.addObject(ctx.targets.llvm_host_component_tblgen_basic_lib.?);
+    host_component_tblgen_min_exe.addObject(host_component_tblgen_basic_lib);
 
     const llvm_min_tablegenerated_incs = block: {
         const writefile_step = ctx.b.addWriteFiles();
         for (ctx.llvm_min_tablegen_files) |desc| {
-            ctx.addTablegenOutputFileToWriteFileStep(writefile_step, ctx.targets.llvm_host_component_tblgen_min_exe.?, desc);
+            ctx.addTablegenOutputFileToWriteFileStep(writefile_step, host_component_tblgen_min_exe, desc);
         }
         break :block writefile_step.getDirectory();
     };
 
     // build llvm/utils/TableGen/Common
-    ctx.targets.llvm_host_component_tblgen_common_lib = ctx.addLLVMObject(.{
+    const host_component_tblgen_common_lib = addLLVMObject(ctx, .{
         .name = "LLVMTableGenCommon",
         .root_module = ctx.makeHostModule(),
     });
-    ctx.targets.llvm_host_component_tblgen_common_lib.?.addCSourceFiles(.{
+    host_component_tblgen_common_lib.addCSourceFiles(.{
         .root = ctx.llvmUtil("TableGen/Common"),
         .files = sources.llvm_tablegen_common_lib_cpp_files,
         .flags = ctx.dupeGlobalFlags(),
         .language = .cpp,
     });
-    ctx.targets.llvm_host_component_tblgen_common_lib.?.addIncludePath(llvm_min_tablegenerated_incs);
+    host_component_tblgen_common_lib.addIncludePath(llvm_min_tablegenerated_incs);
     // installHeadersDirectory is not recursive
-    ctx.targets.llvm_host_component_tblgen_common_lib.?.installHeadersDirectory(ctx.llvmUtil("TableGen/Common"), "Common/", .{});
-    ctx.targets.llvm_host_component_tblgen_common_lib.?.installHeadersDirectory(
+    host_component_tblgen_common_lib.installHeadersDirectory(ctx.llvmUtil("TableGen/Common"), "Common/", .{});
+    host_component_tblgen_common_lib.installHeadersDirectory(
         ctx.llvmUtil("TableGen/Common/GlobalISel"),
         "Common/GlobalISel/",
         .{},
     );
     // TODO: why is this necessary? installHeadersDirectory should add these folders to the include path, right?
-    ctx.targets.llvm_host_component_tblgen_common_lib.?.addIncludePath(ctx.llvmUtil("TableGen"));
+    host_component_tblgen_common_lib.addIncludePath(ctx.llvmUtil("TableGen"));
 
     // link libLLVMTableGen lib into executable
-    ctx.targets.llvm_host_component_tblgen_exe = ctx.addLLVMExecutable(.{
-        .name = "llvm-tblgen",
-        .root_module = ctx.makeHostModule(),
-    });
-    ctx.targets.llvm_host_component_tblgen_exe.?.addCSourceFiles(.{
-        .root = ctx.llvmUtil("TableGen"),
-        .files = sources.llvm_tablegen_cpp_files,
-        .flags = ctx.dupeGlobalFlags(),
-        .language = .cpp,
-    });
-    ctx.targets.llvm_host_component_tblgen_exe.?.addIncludePath(llvm_min_tablegenerated_incs);
-    ctx.targets.llvm_host_component_tblgen_exe.?.addObject(ctx.targets.llvm_host_component_tblgen_common_lib.?);
-    ctx.targets.llvm_host_component_tblgen_exe.?.addObject(ctx.targets.llvm_host_component_tblgen_basic_lib.?);
+    const host_component_tblgen_exe = block: {
+        const lib = addLLVMExecutable(ctx, .{
+            .name = "llvm-tblgen",
+            .root_module = ctx.makeHostModule(),
+        });
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmUtil("TableGen"),
+            .files = sources.llvm_tablegen_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+        lib.addIncludePath(llvm_min_tablegenerated_incs);
+        lib.addObject(host_component_tblgen_common_lib);
+        lib.addObject(host_component_tblgen_basic_lib);
+        break :block lib;
+    };
 
-    {
+    const tablegenerated_incs = block: {
         const writefile_step = ctx.b.addWriteFiles();
         for (ctx.llvm_tablegen_files) |desc| {
-            ctx.addTablegenOutputFileToWriteFileStep(writefile_step, ctx.targets.llvm_host_component_tblgen_exe.?, desc);
+            ctx.addTablegenOutputFileToWriteFileStep(writefile_step, host_component_tblgen_exe, desc);
         }
         // also do everything that tablegen min had
         for (ctx.llvm_min_tablegen_files) |desc| {
-            ctx.addTablegenOutputFileToWriteFileStep(writefile_step, ctx.targets.llvm_host_component_tblgen_exe.?, desc);
+            ctx.addTablegenOutputFileToWriteFileStep(writefile_step, host_component_tblgen_exe, desc);
         }
-        ctx.targets.llvm_tablegenerated_incs = writefile_step.getDirectory();
-    }
+        break :block writefile_step.getDirectory();
+    };
 
     const llvm_core_lib = block: {
         const lib = ctx.b.addLibrary(.{
@@ -422,7 +520,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
 
-        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(tablegenerated_incs);
         lib.linkLibrary(llvm_support_lib);
         break :block lib;
     };
@@ -439,7 +537,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
 
-        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(tablegenerated_incs);
         lib.addIncludePath(ctx.llvmInc("Option"));
         lib.linkLibrary(llvm_support_lib);
         break :block lib;
@@ -457,7 +555,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
 
-        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(tablegenerated_incs);
         lib.linkLibrary(llvm_support_lib);
         break :block lib;
     };
@@ -474,7 +572,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
 
-        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(tablegenerated_incs);
         lib.linkLibrary(llvm_support_lib);
         lib.linkLibrary(llvm_target_parser_lib);
         break :block lib;
@@ -492,7 +590,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
 
-        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(tablegenerated_incs);
         lib.addIncludePath(ctx.llvmLib("Bitcode"));
         lib.addIncludePath(ctx.llvmLib("Bitstream"));
         lib.linkLibrary(llvm_support_lib);
@@ -511,7 +609,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
 
-        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(tablegenerated_incs);
         lib.addIncludePath(ctx.llvmLib("Bitcode"));
         lib.addIncludePath(ctx.llvmLib("Bitstream"));
         lib.linkLibrary(llvm_support_lib);
@@ -533,7 +631,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
 
-        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(tablegenerated_incs);
         lib.linkLibrary(llvm_core_lib);
         lib.linkLibrary(llvm_bitcode_reader_lib);
         break :block lib;
@@ -551,7 +649,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
 
-        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(tablegenerated_incs);
         lib.addIncludePath(ctx.llvmInc("DebugInfo/MSF"));
         lib.linkLibrary(llvm_support_lib);
         break :block lib;
@@ -569,7 +667,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
 
-        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(tablegenerated_incs);
         lib.addIncludePath(ctx.llvmInc("DebugInfo/CodeView"));
         lib.linkLibrary(llvm_support_lib);
         break :block lib;
@@ -587,7 +685,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
 
-        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(tablegenerated_incs);
         lib.addIncludePath(ctx.llvmInc("DebugInfo/BTF"));
         lib.linkLibrary(llvm_support_lib);
         break :block lib;
@@ -614,7 +712,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
 
-        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(tablegenerated_incs);
         lib.addIncludePath(ctx.llvmInc("DebugInfo/PDB"));
 
         lib.linkLibrary(llvm_support_lib);
@@ -637,7 +735,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
 
-        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(tablegenerated_incs);
         lib.addIncludePath(ctx.llvmInc("DebugInfo/DWARF"));
         lib.addIncludePath(ctx.llvmInc("DebugInfo"));
         lib.linkLibrary(llvm_binary_format_lib);
@@ -659,7 +757,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
 
-        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(tablegenerated_incs);
         lib.addIncludePath(ctx.llvmLib("DebugInfo/Symbolize"));
         lib.linkLibrary(llvm_debug_info_dwarf_lib);
         lib.linkLibrary(llvm_debug_info_pdb_lib);
@@ -683,7 +781,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
 
-        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(tablegenerated_incs);
         lib.linkLibrary(llvm_bitstream_reader_lib);
         lib.linkLibrary(llvm_core_lib);
         lib.linkLibrary(llvm_object_lib);
@@ -707,7 +805,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
 
-        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(tablegenerated_incs);
         lib.linkLibrary(llvm_binary_format_lib);
         lib.linkLibrary(llvm_core_lib);
         lib.linkLibrary(llvm_object_lib);
@@ -729,7 +827,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
 
-        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(tablegenerated_incs);
         lib.addIncludePath(ctx.llvmInc("Transforms"));
         lib.addIncludePath(ctx.llvmInc("Transforms/Utils"));
         lib.linkLibrary(llvm_analysis_lib);
@@ -751,7 +849,7 @@ pub fn build(ctx: *Context) void {
             .language = .cpp,
         });
 
-        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        lib.addIncludePath(tablegenerated_incs);
         lib.addIncludePath(ctx.llvmInc("Frontend"));
         lib.addIncludePath(ctx.llvmInc("Frontend/OpenMP"));
         lib.linkLibrary(llvm_core_lib);
@@ -763,20 +861,34 @@ pub fn build(ctx: *Context) void {
         break :block lib;
     };
 
-    ctx.targets.llvm_libs = .{
+    return LLVMExportedArtifacts{
         .option_lib = llvm_option_lib,
         .support_lib = llvm_support_lib,
         .target_parser_lib = llvm_target_parser_lib,
         .frontend_openmp_lib = llvm_frontend_openmp_lib,
-        //.all_targets_infos_lib =
+        //.all_targets_infos_lib = ,
+
+        .public_config_header = public_config_header,
+        //.private_config_header = private_config_header,
+        .targets_def_config_header = targets_def_config_header,
+        .host_component_tblgen_exe = host_component_tblgen_exe,
+        .abi_breaking_config_header = abi_breaking_config_header,
+        .features_inc_config_header = features_inc_config_header,
+        .host_component_support_lib = host_component_support_lib,
+        .host_component_demangle_lib = host_component_demangle_lib,
+        .host_component_tablegen_lib = host_component_tablegen_lib,
+        .asm_parsers_def_config_header = asm_parsers_def_config_header,
+        .target_mcas_def_config_header = target_mcas_def_config_header,
+        .asm_printers_def_config_header = asm_printers_def_config_header,
+        .disassemblers_def_config_header = disassemblers_def_config_header,
+        .target_exegesis_def_config_header = target_exegesis_def_config_header,
+
+        .tablegenerated_incs = tablegenerated_incs,
     };
 }
 
-fn buildDemangle(
-    ctx: *Context,
-    module_options: std.Build.Module.CreateOptions,
-) *std.Build.Step.Compile {
-    const out = ctx.addLLVMLibrary(.{
+fn buildDemangle(ctx: *const Context, module_options: std.Build.Module.CreateOptions) *Compile {
+    const out = addLLVMLibrary(ctx, .{
         .name = "demangle",
         .root_module = ctx.b.createModule(module_options),
         .linkage = .static,
@@ -811,3 +923,92 @@ fn getLLVMNativeArch(arch: std.Target.Cpu.Arch) []const u8 {
         else => @panic("Unsupported architecture passed to getLLVMNativeArch"),
     };
 }
+
+fn buildSupport(
+    ctx: *const Context,
+    module_options: std.Build.Module.CreateOptions,
+) *std.Build.Step.Compile {
+    const support_lib = addLLVMLibrary(ctx, .{
+        .name = "support",
+        .root_module = ctx.b.createModule(module_options),
+        .linkage = .static,
+    });
+
+    var flags = ctx.makeFlags();
+
+    // const target_os_tag = ctx.module_opts.target.?.result.os.tag;
+    const host_os_tag = ctx.b.graph.host.result.os.tag;
+    const target_os_tag = host_os_tag; // just building for host for now, for use in tblgen
+    if (target_os_tag == .windows) {
+        const libs_windows = &[_][]const u8{
+            "psapi",
+            "shell32",
+            "ole32",
+            "uuid",
+            "advapi32",
+            "ws2_32",
+            "ntdll",
+        };
+        for (libs_windows) |lib| {
+            support_lib.linkSystemLibrary(lib);
+        }
+    } else if (Context.osIsUnixLike(host_os_tag)) {
+        // link llvm atomic lib
+        // link llvm pthread lib
+
+        if (Context.osIsUnixLike(target_os_tag) and target_os_tag != .haiku) {
+            support_lib.linkSystemLibrary("m");
+        }
+        if (target_os_tag == .haiku) {
+            support_lib.linkSystemLibrary("bsd");
+            support_lib.linkSystemLibrary("network");
+            flags.append("-D_BSD_SOURCE") catch @panic("OOM");
+        }
+        if (target_os_tag == .fuchsia) {
+            support_lib.linkSystemLibrary("zircon");
+        }
+    }
+
+    // TODO: Z3 link libraries here if enabled
+
+    support_lib.addCSourceFiles(.{
+        .language = .cpp,
+        .files = sources.llvm_support_lib_cpp_files,
+        .root = ctx.paths.llvm.lib.support.path,
+        .flags = flags.toOwnedSlice() catch @panic("OOM"),
+    });
+    support_lib.addCSourceFiles(.{
+        .language = .c,
+        .files = sources.llvm_support_lib_c_files,
+        .root = ctx.paths.llvm.lib.support.path,
+        .flags = flags.toOwnedSlice() catch @panic("OOM"),
+    });
+    support_lib.addIncludePath(ctx.paths.llvm.include.llvm.support.path);
+    support_lib.addIncludePath(ctx.paths.llvm.include.llvm.adt.path);
+    support_lib.addIncludePath(ctx.paths.llvm.lib.support.windows.path);
+    support_lib.addIncludePath(ctx.paths.llvm.lib.support.unix.path);
+
+    if (ctx.targets.zlib) |zlib| {
+        support_lib.linkLibrary(zlib);
+    } else {
+        std.debug.assert(!ctx.opts.llvm_enable_zlib);
+    }
+
+    return support_lib;
+}
+
+// "${ALLOCATOR_FILES}",
+// "$<TARGET_OBJECTS:LLVMSupportBlake3>",
+
+// "ADDITIONAL_HEADER_DIRS",
+// "Unix",
+// "Windows",
+// "${LLVM_MAIN_INCLUDE_DIR}/llvm/ADT",
+// "${LLVM_MAIN_INCLUDE_DIR}/llvm/Support",
+// "${Backtrace_INCLUDE_DIRS}",
+
+// "LINK_LIBS",
+// "${system_libs} ${imported_libs} ${delayload_flags}",
+
+// "LINK_COMPONENTS",
+// "Demangle",

@@ -2,6 +2,8 @@ const std = @import("std");
 const builtin = @import("builtin");
 const zlib_builder = @import("zlib.zig");
 
+const ClangExportedArtifacts = @import("clang.zig").ClangExportedArtifacts;
+const LLVMExportedArtifacts = @import("llvm_zig.zig").LLVMExportedArtifacts;
 const sources = @import("clangd_sources.zig");
 const Compile = std.Build.Step.Compile;
 const LazyPath = std.Build.LazyPath;
@@ -532,91 +534,15 @@ pub const Paths = struct {
 };
 
 pub const Targets = struct {
+    // stuff built by other files
+    clang: ?ClangExportedArtifacts = null,
+    llvm: ?LLVMExportedArtifacts = null,
+
+    // stuff built in this file
     zlib: ?*Compile = null,
     clangd_lib: ?*Compile = null,
     clangd_main_lib: ?*Compile = null,
     clangd_exe: ?*Compile = null,
-
-    // llvm/include/llvm/Config/llvm-config.h.cmake
-    llvm_public_config_header: ?*std.Build.Step.ConfigHeader = null,
-    // llvm/include/llvm/Config/config.h.cmake
-    llvm_private_config_header: ?*std.Build.Step.ConfigHeader = null,
-    // llvm/include/llvm/Config/abi-breaking.h.cmake
-    llvm_abi_breaking_config_header: ?*std.Build.Step.ConfigHeader = null,
-    llvm_features_inc_config_header: ?*std.Build.Step.ConfigHeader = null,
-    llvm_targets_def_config_header: ?*std.Build.Step.ConfigHeader = null,
-    llvm_asm_parsers_def_config_header: ?*std.Build.Step.ConfigHeader = null,
-    llvm_asm_printers_def_config_header: ?*std.Build.Step.ConfigHeader = null,
-    llvm_disassemblers_def_config_header: ?*std.Build.Step.ConfigHeader = null,
-    llvm_target_exegesis_def_config_header: ?*std.Build.Step.ConfigHeader = null,
-    llvm_target_mcas_def_config_header: ?*std.Build.Step.ConfigHeader = null,
-
-    llvm_host_component_demangle_lib: ?*Compile = null,
-    llvm_host_component_support_lib: ?*Compile = null,
-    llvm_host_component_tablegen_lib: ?*Compile = null,
-    llvm_host_component_tblgen_basic_lib: ?*Compile = null,
-    llvm_host_component_tblgen_common_lib: ?*Compile = null,
-    llvm_host_component_tblgen_exe: ?*Compile = null,
-    llvm_host_component_tblgen_min_exe: ?*Compile = null, // for bootstrapping
-
-    llvm_libs: ?struct {
-        support_lib: *Compile,
-        frontend_openmp_lib: *Compile,
-        option_lib: *Compile,
-        target_parser_lib: *Compile,
-        all_targets_infos_lib: *Compile,
-    } = null,
-
-    // llvm_demangle_lib: ?*Compile = null,
-    // llvm_binary_format_lib: ?*Compile = null,
-    // llvm_remarks_lib: ?*Compile = null,
-    // llvm_object_lib: ?*Compile = null,
-    // llvm_core_lib: ?*Compile = null,
-    // llvm_analysis_lib: ?*Compile = null,
-    // llvm_bitcode_reader_lib: ?*Compile = null,
-    // llvm_bitcode_writer_lib: ?*Compile = null,
-    // llvm_bitstream_reader_lib: ?*Compile = null,
-    // llvm_transforms_utils_lib: ?*Compile = null,
-    // llvm_debug_info_btf_lib: ?*Compile = null,
-    // llvm_debug_info_codeview_lib: ?*Compile = null,
-    // llvm_debug_info_dwarf_lib: ?*Compile = null,
-    // llvm_debug_info_msf_lib: ?*Compile = null,
-    // llvm_debug_info_pdb_lib: ?*Compile = null,
-    // llvm_debug_info_symbolize_lib: ?*Compile = null,
-    // llvm_profile_data_lib: ?*Compile = null,
-
-    clang_host_component_tblgen_exe: ?*Compile = null,
-    clang_host_component_support_lib: ?*Compile = null,
-    clang_ast_lib: ?*Compile = null,
-    clang_ast_matchers_lib: ?*Compile = null,
-    clang_basic_lib: ?*Compile = null,
-    clang_driver_lib: ?*Compile = null,
-    clang_format_lib: ?*Compile = null,
-    clang_frontend_lib: ?*Compile = null,
-    clang_index_lib: ?*Compile = null,
-    clang_lex_lib: ?*Compile = null,
-    clang_sema_lib: ?*Compile = null,
-    clang_serialization_lib: ?*Compile = null,
-    clang_api_notes_lib: ?*Compile = null,
-    clang_edit_lib: ?*Compile = null,
-    clang_parse_lib: ?*Compile = null,
-    clang_support_lib: ?*Compile = null,
-    clang_analysis_lib: ?*Compile = null,
-    clang_tooling_lib: ?*Compile = null,
-    clang_tooling_core_lib: ?*Compile = null,
-    clang_tooling_syntax_lib: ?*Compile = null,
-    clang_tooling_inclusions_lib: ?*Compile = null,
-    clang_tooling_inclusions_stdlib_lib: ?*Compile = null,
-    clang_tooling_dependency_scanning_lib: ?*Compile = null,
-    clang_rewrite_lib: ?*Compile = null,
-    clang_basic_version_config_header: ?*std.Build.Step.ConfigHeader = null,
-    clang_version_inc: ?LazyPath = null,
-    clang_config_config_header: ?*std.Build.Step.ConfigHeader = null,
-
-    clang_tablegenerated_incs: ?LazyPath = null,
-    clang_phase2_tablegenerated_incs: ?LazyPath = null,
-    llvm_tablegenerated_incs: ?LazyPath = null,
-
     // cte short for clang_tools_extra
     cte_clang_tidy_config_config_header: ?*std.Build.Step.ConfigHeader = null,
 };
@@ -698,48 +624,48 @@ pub const Context = struct {
         return ctx.src_root.path(ctx.b, "llvm/utils").path(ctx.b, relative);
     }
 
-    fn addLLVMIncludesAndLinks(ctx: @This(), c: *Compile) *Compile {
-        c.addIncludePath(ctx.srcPath("llvm/include"));
-        c.addConfigHeader(ctx.targets.llvm_public_config_header.?);
-        c.addConfigHeader(ctx.targets.llvm_private_config_header.?);
-        c.addConfigHeader(ctx.targets.llvm_abi_breaking_config_header.?);
-        c.addConfigHeader(ctx.targets.llvm_features_inc_config_header.?);
-        c.addConfigHeader(ctx.targets.llvm_targets_def_config_header.?);
-        c.addConfigHeader(ctx.targets.llvm_asm_parsers_def_config_header.?);
-        c.addConfigHeader(ctx.targets.llvm_disassemblers_def_config_header.?);
-        c.addConfigHeader(ctx.targets.llvm_asm_printers_def_config_header.?);
-        c.addConfigHeader(ctx.targets.llvm_target_exegesis_def_config_header.?);
-        c.addConfigHeader(ctx.targets.llvm_target_mcas_def_config_header.?);
-        c.linkLibCpp();
-        return c;
+    pub fn configAll(c: *Compile, headers: []const *std.Build.Step.ConfigHeader) void {
+        for (headers) |h| {
+            c.addConfigHeader(h);
+        }
     }
 
-    fn addClangIncludesAndLinks(ctx: @This(), c: *Compile) *Compile {
-        addLLVMIncludesAndLinks(ctx, c).addIncludePath(ctx.srcPath("clang/include"));
-        c.addConfigHeader(ctx.targets.clang_basic_version_config_header.?);
-        c.addConfigHeader(ctx.targets.clang_config_config_header.?);
-        c.addIncludePath(ctx.targets.clang_version_inc.?);
-        return c;
+    pub fn linkAll(c: *Compile, libs: []const *Compile) void {
+        for (libs) |l| {
+            c.linkLibrary(l);
+        }
     }
 
-    pub fn addLLVMLibrary(ctx: @This(), options: std.Build.LibraryOptions) *Compile {
-        return addLLVMIncludesAndLinks(ctx, ctx.b.addLibrary(options));
+    pub fn includeAll(c: *Compile, paths: []const LazyPath) void {
+        for (paths) |p| {
+            c.addIncludePath(p);
+        }
     }
 
-    pub fn addLLVMExecutable(ctx: @This(), options: std.Build.ExecutableOptions) *Compile {
-        return addLLVMIncludesAndLinks(ctx, ctx.b.addExecutable(options));
+    fn linkExportedType(T: type, ptr: *const T, c: *Compile) void {
+        inline for (@typeInfo(T).@"struct".fields) |field| {
+            if (field.type == *ConfigHeader) {
+                c.addConfigHeader(@field(ptr, field.name));
+            }
+            if (field.type == *Compile) {
+                const cstep: *Compile = @field(ptr, field.name);
+                if (cstep.kind == .lib or cstep.kind == .obj) {
+                    c.linkLibrary(cstep);
+                }
+            }
+            if (field.type == LazyPath) {
+                c.addIncludePath(@field(ptr, field.name));
+            }
+        }
     }
 
-    pub fn addLLVMObject(ctx: @This(), options: std.Build.ObjectOptions) *Compile {
-        return addLLVMIncludesAndLinks(ctx, ctx.b.addObject(options));
+    pub fn linkLLVM(ctx: @This(), c: *Compile) void {
+        linkExportedType(LLVMExportedArtifacts, &ctx.targets.llvm.?, c);
     }
 
-    pub fn addClangLibrary(ctx: @This(), options: std.Build.LibraryOptions) *Compile {
-        return addClangIncludesAndLinks(ctx, ctx.b.addLibrary(options));
-    }
-
-    pub fn addClangExecutable(ctx: @This(), options: std.Build.ExecutableOptions) *Compile {
-        return addClangIncludesAndLinks(ctx, ctx.b.addExecutable(options));
+    pub fn linkClang(ctx: @This(), c: *Compile) void {
+        ctx.linkLLVM(c);
+        linkExportedType(ClangExportedArtifacts, &ctx.targets.clang.?, c);
     }
 
     fn tablegen(
@@ -1071,8 +997,8 @@ pub fn build(b: *std.Build) !void {
     }
 
     // fill out the components of ctx.targets which begin with "llvm_"
-    @import("llvm_zig.zig").build(ctx);
-    @import("clang.zig").build(ctx);
+    ctx.targets.llvm = @import("llvm_zig.zig").build(ctx);
+    ctx.targets.clang = @import("clang.zig").build(ctx);
 
     // clang tools extra stuff
 
@@ -1084,7 +1010,7 @@ pub fn build(b: *std.Build) !void {
     }
 
     const clangd_lib = block: {
-        const lib = ctx.addClangLibrary(.{
+        const lib = ctx.b.addLibrary(.{
             .name = "clangd_lib",
             .linkage = .static,
             .root_module = ctx.makeModule(),
@@ -1092,9 +1018,7 @@ pub fn build(b: *std.Build) !void {
         lib.linkLibCpp();
         lib.addIncludePath(ctx.srcPath("clang-tools-extra/include-cleaner/include"));
         lib.addIncludePath(ctx.srcPath("clang-tools-extra/clangd"));
-        lib.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
-        lib.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
-        lib.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
+        ctx.linkClang(lib);
         // TODO: configure and install clang-tidy headers, add the build dir as include path
         lib.addConfigHeader(ctx.targets.cte_clang_tidy_config_config_header.?);
 
@@ -1104,32 +1028,6 @@ pub fn build(b: *std.Build) !void {
             .flags = &.{},
             .language = .cpp,
         });
-
-        lib.linkLibrary(ctx.targets.clang_ast_lib.?);
-        lib.linkLibrary(ctx.targets.clang_ast_matchers_lib.?);
-        lib.linkLibrary(ctx.targets.clang_basic_lib.?);
-        lib.linkLibrary(ctx.targets.clang_format_lib.?);
-        lib.linkLibrary(ctx.targets.clang_driver_lib.?);
-        lib.linkLibrary(ctx.targets.clang_lex_lib.?);
-        lib.linkLibrary(ctx.targets.clang_tooling_core_lib.?);
-        lib.linkLibrary(ctx.targets.clang_tooling_inclusions_lib.?);
-        lib.linkLibrary(ctx.targets.clang_tooling_dependency_scanning_lib.?);
-        lib.linkLibrary(ctx.targets.clang_driver_lib.?);
-        lib.linkLibrary(ctx.targets.clang_frontend_lib.?);
-        lib.linkLibrary(ctx.targets.clang_sema_lib.?);
-        lib.linkLibrary(ctx.targets.clang_index_lib.?);
-        lib.linkLibrary(ctx.targets.clang_serialization_lib.?);
-        lib.linkLibrary(ctx.targets.clang_tooling_lib.?);
-        lib.linkLibrary(ctx.targets.clang_tooling_syntax_lib.?);
-        lib.linkLibrary(ctx.targets.clang_tooling_inclusions_stdlib_lib.?);
-
-        // bring in llvm
-        const llvm_libs = ctx.targets.llvm_libs.?;
-        lib.linkLibrary(llvm_libs.support_lib);
-        lib.linkLibrary(llvm_libs.frontend_openmp_lib);
-        lib.linkLibrary(llvm_libs.option_lib);
-        lib.linkLibrary(llvm_libs.target_parser_lib);
-        lib.linkLibrary(llvm_libs.all_targets_infos_lib);
         break :block lib;
     };
 
@@ -1145,35 +1043,40 @@ pub fn build(b: *std.Build) !void {
     // TODO: include generated COMPLETIONMODEL headers and necessary sources
     // lib.addIncludePath(...);
 
-    ctx.targets.clangd_main_lib = ctx.addClangLibrary(.{
-        .name = "clangd_main_lib",
-        .linkage = .static,
-        .root_module = ctx.makeModule(),
-    });
-    ctx.targets.clangd_main_lib.?.linkLibCpp();
-    ctx.targets.clangd_main_lib.?.addCSourceFiles(.{
-        .root = ctx.srcPath("clang-tools-extra/clangd/tool"),
-        .files = sources.tool_lib_cpp_files,
-        .flags = ctx.dupeGlobalFlags(),
-    });
-    ctx.targets.clangd_main_lib.?.addIncludePath(ctx.srcPath("clang-tools-extra/clangd"));
-    ctx.targets.clangd_main_lib.?.addIncludePath(ctx.srcPath("clang-tools-extra/include-cleaner/include"));
-    ctx.targets.clangd_main_lib.?.addIncludePath(ctx.targets.clang_tablegenerated_incs.?);
-    ctx.targets.clangd_main_lib.?.addIncludePath(ctx.targets.clang_phase2_tablegenerated_incs.?);
-    ctx.targets.clangd_main_lib.?.addIncludePath(ctx.targets.llvm_tablegenerated_incs.?);
-    ctx.targets.clangd_main_lib.?.addConfigHeader(ctx.targets.cte_clang_tidy_config_config_header.?);
+    const clangd_main_lib = block: {
+        const lib = ctx.b.addLibrary(.{
+            .name = "clangd_main_lib",
+            .linkage = .static,
+            .root_module = ctx.makeModule(),
+        });
+        lib.linkLibCpp();
+        lib.addCSourceFiles(.{
+            .root = ctx.srcPath("clang-tools-extra/clangd/tool"),
+            .files = sources.tool_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+        });
+        ctx.linkClang(lib);
+        lib.addIncludePath(ctx.srcPath("clang-tools-extra/clangd"));
+        lib.addIncludePath(ctx.srcPath("clang-tools-extra/include-cleaner/include"));
+        lib.addConfigHeader(ctx.targets.cte_clang_tidy_config_config_header.?);
+        break :block lib;
+    };
 
-    ctx.targets.clangd_exe = b.addExecutable(.{
-        .name = "clangd",
-        .root_module = ctx.makeModule(),
-    });
-    ctx.targets.clangd_exe.?.addCSourceFiles(.{
-        .root = ctx.srcPath("clang-tools-extra/clangd"),
-        .files = sources.tool_cpp_files,
-        .flags = ctx.dupeGlobalFlags(),
-        .language = .cpp,
-    });
-    ctx.b.installArtifact(ctx.targets.clangd_exe.?);
-    ctx.targets.clangd_exe.?.linkLibrary(clangd_lib);
-    ctx.targets.clangd_exe.?.linkLibrary(ctx.targets.clangd_main_lib.?);
+    const clangd_exe = block: {
+        const exe = b.addExecutable(.{
+            .name = "clangd",
+            .root_module = ctx.makeModule(),
+        });
+        exe.addCSourceFiles(.{
+            .root = ctx.srcPath("clang-tools-extra/clangd"),
+            .files = sources.tool_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+        exe.linkLibrary(clangd_lib);
+        exe.linkLibrary(clangd_main_lib);
+        break :block exe;
+    };
+
+    ctx.b.installArtifact(clangd_exe);
 }
