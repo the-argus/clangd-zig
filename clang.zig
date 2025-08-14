@@ -149,7 +149,10 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     const clang_host_component_support_lib = block: {
         const lib = compileSupportLib(ctx, ctx.makeHostModule());
         // clang support also has llvm support and tablegen lib
-        Context.linkAll(lib, &.{llvm.host_component_tablegen_lib});
+        Context.linkAll(lib, &.{
+            llvm.host_component_tablegen_lib,
+            llvm.host_component_support_lib,
+        });
         break :block lib;
     };
 
@@ -166,7 +169,10 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
-        Context.linkAll(lib, &.{clang_host_component_support_lib});
+        Context.linkAll(lib, &.{
+            clang_host_component_support_lib,
+            llvm.host_component_support_lib,
+        });
         break :block lib;
     };
 
@@ -269,7 +275,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         lib.addCSourceFiles(.{
-            .root = ctx.clangLib("Tooling/Inclusions/StdLib"),
+            .root = ctx.clangLib("Tooling/Inclusions/Stdlib"),
             .files = sources.clang_tooling_inclusions_stdlib_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
@@ -311,7 +317,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         lib.addCSourceFiles(.{
-            .root = ctx.clangLib("AstMatchers"),
+            .root = ctx.clangLib("ASTMatchers"),
             .files = sources.clang_ast_matchers_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,

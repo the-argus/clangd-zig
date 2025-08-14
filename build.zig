@@ -104,6 +104,14 @@ pub const ABIBreakingChecks = enum {
     pub fn default() @This() {
         return .WITH_ASSERTS;
     }
+
+    pub fn areChecksEnabled(self: @This(), assertions_enabled: bool) bool {
+        return switch (self) {
+            .WITH_ASSERTS => assertions_enabled,
+            .FORCE_ON => true,
+            .FORCE_OFF => false,
+        };
+    }
 };
 
 pub const TableGenOptions = struct {
@@ -364,14 +372,12 @@ pub const Context = struct {
         inline for (@typeInfo(T).@"struct".fields) |field| {
             if (field.type == *ConfigHeader) {
                 c.addConfigHeader(@field(ptr, field.name));
-            }
-            if (field.type == *Compile) {
+            } else if (field.type == *Compile) {
                 const cstep: *Compile = @field(ptr, field.name);
                 if (cstep.kind == .lib or cstep.kind == .obj) {
                     c.linkLibrary(cstep);
                 }
-            }
-            if (field.type == LazyPath) {
+            } else if (field.type == LazyPath) {
                 c.addIncludePath(@field(ptr, field.name));
             }
         }
@@ -739,6 +745,7 @@ pub fn build(b: *std.Build) !void {
         ctx.linkClang(lib);
         // TODO: configure and install clang-tidy headers, add the build dir as include path
         lib.addConfigHeader(ctx.targets.cte_clang_tidy_config_config_header.?);
+        lib.addConfigHeader(ctx.targets.llvm.?.features_inc_config_header);
 
         lib.addCSourceFiles(.{
             .root = ctx.srcPath("clang-tools-extra/clangd"),
@@ -777,6 +784,7 @@ pub fn build(b: *std.Build) !void {
         lib.addIncludePath(ctx.srcPath("clang-tools-extra/clangd"));
         lib.addIncludePath(ctx.srcPath("clang-tools-extra/include-cleaner/include"));
         lib.addConfigHeader(ctx.targets.cte_clang_tidy_config_config_header.?);
+        lib.addConfigHeader(ctx.targets.llvm.?.features_inc_config_header);
         break :block lib;
     };
 
@@ -786,7 +794,7 @@ pub fn build(b: *std.Build) !void {
             .root_module = ctx.makeModule(),
         });
         exe.addCSourceFiles(.{
-            .root = ctx.srcPath("clang-tools-extra/clangd"),
+            .root = ctx.srcPath("clang-tools-extra/clangd/tool"),
             .files = sources.tool_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,

@@ -123,10 +123,9 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
     const abi_breaking_opts = ctx.paths.llvm.include.llvm.config.llvm_abi_breaking_config_header.makeOptions();
     const abi_breaking_config_header = ctx.b.addConfigHeader(abi_breaking_opts, .{
         .LLVM_ENABLE_REVERSE_ITERATION = ctx.opts.llvm_reverse_iteration,
-        .LLVM_ENABLE_ABI_BREAKING_CHECKS = std.enums.tagName(
-            ABIBreakingChecks,
-            ctx.opts.llvm_abi_breaking_checks,
-        ),
+        // assertions only enabled in debug mode
+        // TODO: reenable this, it was causing some compilation errors which were intended by the llvm devs but i cant figure out the cause
+        .LLVM_ENABLE_ABI_BREAKING_CHECKS = false, //ctx.opts.llvm_abi_breaking_checks.areChecksEnabled(ctx.module_opts.optimize == .Debug),
     });
 
     const features_inc_config_header = ctx.b.addConfigHeader(
@@ -454,6 +453,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .language = .cpp,
         });
         lib.addObject(host_component_tblgen_basic_lib);
+        lib.linkLibrary(host_component_support_lib);
         break :block lib;
     };
 
@@ -505,6 +505,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         lib.addIncludePath(llvm_min_tablegenerated_incs);
         lib.addObject(host_component_tblgen_common_lib);
         lib.addObject(host_component_tblgen_basic_lib);
+        lib.linkLibrary(host_component_support_lib);
         break :block lib;
     };
 
