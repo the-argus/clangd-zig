@@ -73,7 +73,7 @@ pub const Options = struct {
     supported_targets: LLVMSupportedTargets,
 };
 
-pub const ConfigHeader = struct {
+pub const CHeader = struct {
     output_include_path: []const u8,
     unconfigured_header_path: LazyPath,
 
@@ -127,7 +127,7 @@ pub const Paths = struct {
     // subdirs in the root directory
     clang_tools_extra: struct {
         clang_tidy: struct {
-            clang_tidy_config_config_header: ConfigHeader,
+            clang_tidy_config_config_header: CHeader,
         },
     },
 
@@ -135,10 +135,10 @@ pub const Paths = struct {
         include: struct {
             clang: struct {
                 config: struct {
-                    config_config_header: ConfigHeader,
+                    config_config_header: CHeader,
                 },
                 basic: struct {
-                    clang_basic_version_config_header: ConfigHeader,
+                    clang_basic_version_config_header: CHeader,
                 },
             },
         },
@@ -148,15 +148,15 @@ pub const Paths = struct {
         include: struct {
             llvm: struct {
                 config: struct {
-                    llvm_private_config_header: ConfigHeader,
-                    llvm_public_config_header: ConfigHeader,
-                    llvm_abi_breaking_config_header: ConfigHeader,
-                    llvm_targets_def_config_header: ConfigHeader,
-                    llvm_asm_printers_def_config_header: ConfigHeader,
-                    llvm_asm_parsers_def_config_header: ConfigHeader,
-                    llvm_disassemblers_def_config_header: ConfigHeader,
-                    llvm_target_exegesis_def_config_header: ConfigHeader,
-                    llvm_target_mcas_def_config_header: ConfigHeader,
+                    llvm_private_config_header: CHeader,
+                    llvm_public_config_header: CHeader,
+                    llvm_abi_breaking_config_header: CHeader,
+                    llvm_targets_def_config_header: CHeader,
+                    llvm_asm_printers_def_config_header: CHeader,
+                    llvm_asm_parsers_def_config_header: CHeader,
+                    llvm_disassemblers_def_config_header: CHeader,
+                    llvm_target_exegesis_def_config_header: CHeader,
+                    llvm_target_mcas_def_config_header: CHeader,
                 },
             },
         },
@@ -170,7 +170,7 @@ pub const Paths = struct {
             .root = root,
             .clang_tools_extra = .{
                 .clang_tidy = .{
-                    .clang_tidy_config_config_header = ConfigHeader{
+                    .clang_tidy_config_config_header = CHeader{
                         .output_include_path = "clang-tidy-config.h",
                         .unconfigured_header_path = root.path(
                             b,
@@ -183,13 +183,13 @@ pub const Paths = struct {
                 .include = .{
                     .clang = .{
                         .config = .{
-                            .config_config_header = ConfigHeader{
+                            .config_config_header = CHeader{
                                 .output_include_path = "clang/Config/config.h",
                                 .unconfigured_header_path = root.path(b, "clang/include/clang/Config/config.h.cmake"),
                             },
                         },
                         .basic = .{
-                            .clang_basic_version_config_header = ConfigHeader{
+                            .clang_basic_version_config_header = CHeader{
                                 .output_include_path = "clang/Basic/Version.inc",
                                 .unconfigured_header_path = root.path(b, "clang/include/clang/Basic/Version.inc.in"),
                             },
@@ -201,39 +201,39 @@ pub const Paths = struct {
                 .include = .{
                     .llvm = .{
                         .config = .{
-                            .llvm_public_config_header = ConfigHeader{
+                            .llvm_public_config_header = CHeader{
                                 .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/llvm-config.h.cmake"),
                                 .output_include_path = "llvm/Config/llvm-config.h",
                             },
-                            .llvm_private_config_header = ConfigHeader{
+                            .llvm_private_config_header = CHeader{
                                 .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/config.h.cmake"),
                                 .output_include_path = "llvm/Config/config.h",
                             },
-                            .llvm_abi_breaking_config_header = ConfigHeader{
+                            .llvm_abi_breaking_config_header = CHeader{
                                 .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/abi-breaking.h.cmake"),
                                 .output_include_path = "llvm/Config/abi-breaking.h",
                             },
-                            .llvm_targets_def_config_header = ConfigHeader{
+                            .llvm_targets_def_config_header = CHeader{
                                 .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/Targets.def.in"),
                                 .output_include_path = "llvm/Config/Targets.def",
                             },
-                            .llvm_asm_printers_def_config_header = ConfigHeader{
+                            .llvm_asm_printers_def_config_header = CHeader{
                                 .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/AsmPrinters.def.in"),
                                 .output_include_path = "llvm/Config/AsmPrinters.def",
                             },
-                            .llvm_asm_parsers_def_config_header = ConfigHeader{
+                            .llvm_asm_parsers_def_config_header = CHeader{
                                 .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/AsmParsers.def.in"),
                                 .output_include_path = "llvm/Config/AsmParsers.def",
                             },
-                            .llvm_disassemblers_def_config_header = ConfigHeader{
+                            .llvm_disassemblers_def_config_header = CHeader{
                                 .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/Disassemblers.def.in"),
                                 .output_include_path = "llvm/Config/Disassemblers.def",
                             },
-                            .llvm_target_exegesis_def_config_header = ConfigHeader{
+                            .llvm_target_exegesis_def_config_header = CHeader{
                                 .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/TargetExegesis.def.in"),
                                 .output_include_path = "llvm/Config/TargetExegesis.def",
                             },
-                            .llvm_target_mcas_def_config_header = ConfigHeader{
+                            .llvm_target_mcas_def_config_header = CHeader{
                                 .unconfigured_header_path = root.path(b, "llvm/include/llvm/Config/TargetMCAs.def.in"),
                                 .output_include_path = "llvm/Config/TargetMCAs.def",
                             },
@@ -368,14 +368,17 @@ pub const Context = struct {
         }
     }
 
-    fn linkExportedType(T: type, ptr: *const T, c: *Compile) void {
+    fn linkExportedType(T: type, ptr: *const T, c: *Compile, for_host: bool) void {
         inline for (@typeInfo(T).@"struct".fields) |field| {
-            if (field.type == *ConfigHeader) {
+            if (field.type == *std.Build.Step.ConfigHeader) {
                 c.addConfigHeader(@field(ptr, field.name));
             } else if (field.type == *Compile) {
-                const cstep: *Compile = @field(ptr, field.name);
-                if (cstep.kind == .lib or cstep.kind == .obj) {
-                    c.linkLibrary(cstep);
+                const is_host_lib = std.mem.startsWith(u8, field.name, "host");
+                if (is_host_lib == for_host) {
+                    const cstep: *Compile = @field(ptr, field.name);
+                    if (cstep.kind == .lib or cstep.kind == .obj) {
+                        c.linkLibrary(cstep);
+                    }
                 }
             } else if (field.type == LazyPath) {
                 c.addIncludePath(@field(ptr, field.name));
@@ -383,13 +386,20 @@ pub const Context = struct {
         }
     }
 
-    pub fn linkLLVM(ctx: @This(), c: *Compile) void {
-        linkExportedType(LLVMExportedArtifacts, &ctx.targets.llvm.?, c);
+    pub fn linkTargetLLVM(ctx: @This(), c: *Compile) void {
+        c.addIncludePath(ctx.srcPath("llvm/include"));
+        linkExportedType(LLVMExportedArtifacts, &ctx.targets.llvm.?, c, false);
     }
 
-    pub fn linkClang(ctx: @This(), c: *Compile) void {
-        ctx.linkLLVM(c);
-        linkExportedType(ClangExportedArtifacts, &ctx.targets.clang.?, c);
+    pub fn linkHostLLVM(ctx: @This(), c: *Compile) void {
+        c.addIncludePath(ctx.srcPath("llvm/include"));
+        linkExportedType(LLVMExportedArtifacts, &ctx.targets.llvm.?, c, true);
+    }
+
+    pub fn linkTargetClang(ctx: @This(), c: *Compile) void {
+        ctx.linkTargetLLVM(c);
+        c.addIncludePath(ctx.srcPath("clang/include"));
+        linkExportedType(ClangExportedArtifacts, &ctx.targets.clang.?, c, false);
     }
 
     fn tablegen(
@@ -742,7 +752,7 @@ pub fn build(b: *std.Build) !void {
         lib.linkLibCpp();
         lib.addIncludePath(ctx.srcPath("clang-tools-extra/include-cleaner/include"));
         lib.addIncludePath(ctx.srcPath("clang-tools-extra/clangd"));
-        ctx.linkClang(lib);
+        ctx.linkTargetClang(lib);
         // TODO: configure and install clang-tidy headers, add the build dir as include path
         lib.addConfigHeader(ctx.targets.cte_clang_tidy_config_config_header.?);
         lib.addConfigHeader(ctx.targets.llvm.?.features_inc_config_header);
@@ -780,7 +790,7 @@ pub fn build(b: *std.Build) !void {
             .files = sources.tool_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
         });
-        ctx.linkClang(lib);
+        ctx.linkTargetClang(lib);
         lib.addIncludePath(ctx.srcPath("clang-tools-extra/clangd"));
         lib.addIncludePath(ctx.srcPath("clang-tools-extra/include-cleaner/include"));
         lib.addConfigHeader(ctx.targets.cte_clang_tidy_config_config_header.?);

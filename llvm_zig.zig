@@ -1089,7 +1089,10 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
 
         lib.step.dependOn(&llvm_analysis_lib.step);
         lib.step.dependOn(&llvm_target_parser_lib.step);
-        Context.includeAll(lib, &.{ctx.llvmInc("Frontend/Atomic")});
+        Context.includeAll(lib, &.{
+            ctx.llvmInc("Frontend/Atomic"),
+            tablegenerated_incs,
+        });
         Context.linkAll(lib, &.{
             llvm_core_lib,
             llvm_support_lib,

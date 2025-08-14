@@ -32,11 +32,8 @@ pub const ClangExportedArtifacts = struct {
     phase2_tablegenerated_incs: LazyPath,
 };
 
-fn compileSupportLib(ctx: *const Context, module: *std.Build.Module) *Compile {
-    var out = addClangLibrary(ctx, .{
-        .name = "clangSupport",
-        .root_module = module,
-    });
+fn compileSupportLib(ctx: *const Context, is_host: bool) *Compile {
+    var out = addClangLibrary(ctx, "clangSupport", is_host);
     out.addCSourceFiles(.{
         .root = ctx.srcPath("clang/lib/Support"),
         .files = sources.clang_support_lib_cpp_files,
@@ -49,21 +46,27 @@ fn compileSupportLib(ctx: *const Context, module: *std.Build.Module) *Compile {
 var clang_headers: ?[]*ConfigHeader = null;
 var clang_include_paths: ?[]LazyPath = null;
 
-fn addClangIncludesAndConfigHeaders(ctx: *const Context, c: *Compile) void {
-    ctx.linkLLVM(c);
+fn addClangIncludesAndConfigHeaders(ctx: *const Context, c: *Compile, is_host: bool) void {
+    if (is_host) ctx.linkHostLLVM(c) else ctx.linkTargetLLVM(c);
     Context.configAll(c, clang_headers.?);
     Context.includeAll(c, clang_include_paths.?);
 }
 
-fn addClangExecutable(ctx: *const Context, opts: std.Build.ExecutableOptions) *Compile {
-    const out = ctx.b.addExecutable(opts);
-    addClangIncludesAndConfigHeaders(ctx, out);
+fn addClangExecutable(ctx: *const Context, name: []const u8, is_host: bool) *Compile {
+    const out = ctx.b.addExecutable(.{
+        .name = name,
+        .root_module = if (is_host) ctx.makeHostModule() else ctx.makeModule(),
+    });
+    addClangIncludesAndConfigHeaders(ctx, out, is_host);
     return out;
 }
 
-fn addClangLibrary(ctx: *const Context, options: std.Build.LibraryOptions) *Compile {
-    const out = ctx.b.addLibrary(options);
-    addClangIncludesAndConfigHeaders(ctx, out);
+fn addClangLibrary(ctx: *const Context, name: []const u8, is_host: bool) *Compile {
+    const out = ctx.b.addLibrary(.{
+        .name = name,
+        .root_module = if (is_host) ctx.makeHostModule() else ctx.makeModule(),
+    });
+    addClangIncludesAndConfigHeaders(ctx, out, is_host);
     return out;
 }
 
@@ -147,7 +150,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
 
     // naming these with clang_* because names are shared with llvm
     const clang_host_component_support_lib = block: {
-        const lib = compileSupportLib(ctx, ctx.makeHostModule());
+        const lib = compileSupportLib(ctx, true);
         // clang support also has llvm support and tablegen lib
         Context.linkAll(lib, &.{
             llvm.host_component_tablegen_lib,
@@ -156,13 +159,10 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
         break :block lib;
     };
 
-    const clang_support_lib = compileSupportLib(ctx, ctx.makeModule());
+    const clang_support_lib = compileSupportLib(ctx, false);
 
     const clang_host_component_tblgen_exe = block: {
-        const lib = addClangExecutable(ctx, .{
-            .name = "clang-tblgen",
-            .root_module = ctx.makeHostModule(),
-        });
+        const lib = addClangExecutable(ctx, "clang-tblgen", true);
         lib.addCSourceFiles(.{
             .files = sources.clang_tablegen_cpp_files,
             .root = ctx.clangUtil("TableGen"),
@@ -190,10 +190,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     const clang_phase2_tablegenerated_incs = writefile_step_phase2.getDirectory();
 
     const clang_basic_lib = block: {
-        const lib = addClangLibrary(ctx, .{
-            .name = "clangBasic",
-            .root_module = ctx.makeModule(),
-        });
+        const lib = addClangLibrary(ctx, "clangBasic", false);
         lib.addCSourceFiles(.{
             .root = ctx.clangLib("Basic"),
             .files = sources.clang_basic_lib_cpp_files,
@@ -209,10 +206,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     };
 
     const clang_api_notes_lib = block: {
-        const lib = addClangLibrary(ctx, .{
-            .name = "clangAPINotes",
-            .root_module = ctx.makeModule(),
-        });
+        const lib = addClangLibrary(ctx, "clangAPINotes", false);
         lib.addCSourceFiles(.{
             .root = ctx.clangLib("APINotes"),
             .files = sources.clang_api_notes_lib_cpp_files,
@@ -228,10 +222,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     };
 
     const clang_lex_lib = block: {
-        const lib = addClangLibrary(ctx, .{
-            .name = "clangLex",
-            .root_module = ctx.makeModule(),
-        });
+        const lib = addClangLibrary(ctx, "clangLex", false);
         lib.addCSourceFiles(.{
             .root = ctx.clangLib("Lex"),
             .files = sources.clang_lex_lib_cpp_files,
@@ -247,10 +238,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     };
 
     const clang_ast_lib = block: {
-        const lib = addClangLibrary(ctx, .{
-            .name = "clangAST",
-            .root_module = ctx.makeModule(),
-        });
+        const lib = addClangLibrary(ctx, "clangAST", false);
         lib.addCSourceFiles(.{
             .root = ctx.clangLib("AST"),
             .files = sources.clang_ast_lib_cpp_files,
@@ -270,10 +258,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     };
 
     const clang_tooling_inclusions_stdlib_lib = block: {
-        const lib = addClangLibrary(ctx, .{
-            .name = "clangToolingInclusionsStdlib",
-            .root_module = ctx.makeModule(),
-        });
+        const lib = addClangLibrary(ctx, "clangToolingInclusionsStdlib", false);
         lib.addCSourceFiles(.{
             .root = ctx.clangLib("Tooling/Inclusions/Stdlib"),
             .files = sources.clang_tooling_inclusions_stdlib_lib_cpp_files,
@@ -289,10 +274,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     };
 
     const clang_edit_lib = block: {
-        const lib = addClangLibrary(ctx, .{
-            .name = "clangEdit",
-            .root_module = ctx.makeModule(),
-        });
+        const lib = addClangLibrary(ctx, "clangEdit", false);
         lib.addCSourceFiles(.{
             .root = ctx.clangLib("Edit"),
             .files = sources.clang_edit_lib_cpp_files,
@@ -312,10 +294,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     };
 
     const clang_ast_matchers_lib = block: {
-        const lib = addClangLibrary(ctx, .{
-            .name = "clangASTMatchers",
-            .root_module = ctx.makeModule(),
-        });
+        const lib = addClangLibrary(ctx, "clangASTMatchers", false);
         lib.addCSourceFiles(.{
             .root = ctx.clangLib("ASTMatchers"),
             .files = sources.clang_ast_matchers_lib_cpp_files,
@@ -335,10 +314,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     };
 
     const clang_analysis_lib = block: {
-        const lib = addClangLibrary(ctx, .{
-            .name = "clangAnalysis",
-            .root_module = ctx.makeModule(),
-        });
+        const lib = addClangLibrary(ctx, "clangAnalysis", false);
         lib.addCSourceFiles(.{
             .root = ctx.clangLib("Analysis"),
             .files = sources.clang_analysis_lib_cpp_files,
@@ -359,10 +335,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     };
 
     const clang_sema_lib = block: {
-        const lib = addClangLibrary(ctx, .{
-            .name = "clangSema",
-            .root_module = ctx.makeModule(),
-        });
+        const lib = addClangLibrary(ctx, "clangSema", false);
         lib.addCSourceFiles(.{
             .root = ctx.clangLib("Sema"),
             .files = sources.clang_sema_lib_cpp_files,
@@ -387,10 +360,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     };
 
     const clang_serialization_lib = block: {
-        const lib = addClangLibrary(ctx, .{
-            .name = "clangSerialization",
-            .root_module = ctx.makeModule(),
-        });
+        const lib = addClangLibrary(ctx, "clangSerialization", false);
         lib.addCSourceFiles(.{
             .root = ctx.clangLib("Serialization"),
             .files = sources.clang_serialization_lib_cpp_files,
@@ -412,10 +382,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     };
 
     const clang_parse_lib = block: {
-        const lib = addClangLibrary(ctx, .{
-            .name = "clangParse",
-            .root_module = ctx.makeModule(),
-        });
+        const lib = addClangLibrary(ctx, "clangParse", false);
         lib.addCSourceFiles(.{
             .root = ctx.clangLib("Parse"),
             .files = sources.clang_parse_lib_cpp_files,
@@ -437,10 +404,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     };
 
     const clang_driver_lib = block: {
-        const lib = addClangLibrary(ctx, .{
-            .name = "clangDriver",
-            .root_module = ctx.makeModule(),
-        });
+        const lib = addClangLibrary(ctx, "clangDriver", false);
         lib.addCSourceFiles(.{
             .root = ctx.clangLib("Driver"),
             .files = sources.clang_driver_lib_cpp_files,
@@ -458,10 +422,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     };
 
     const clang_frontend_lib = block: {
-        const lib = addClangLibrary(ctx, .{
-            .name = "clangFrontend",
-            .root_module = ctx.makeModule(),
-        });
+        const lib = addClangLibrary(ctx, "clangFrontend", false);
         lib.addCSourceFiles(.{
             .root = ctx.clangLib("Frontend"),
             .files = sources.clang_frontend_lib_cpp_files,
@@ -488,10 +449,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     };
 
     const clang_rewrite_lib = block: {
-        const lib = addClangLibrary(ctx, .{
-            .name = "clangRewrite",
-            .root_module = ctx.makeModule(),
-        });
+        const lib = addClangLibrary(ctx, "clangRewrite", false);
         lib.addCSourceFiles(.{
             .root = ctx.clangLib("Rewrite"),
             .files = sources.clang_rewrite_lib_cpp_files,
@@ -510,10 +468,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     };
 
     const clang_tooling_core_lib = block: {
-        const lib = addClangLibrary(ctx, .{
-            .name = "clangToolingCore",
-            .root_module = ctx.makeModule(),
-        });
+        const lib = addClangLibrary(ctx, "clangToolingCore", false);
         lib.addCSourceFiles(.{
             .root = ctx.clangLib("Tooling/Core"),
             .files = sources.clang_tooling_core_lib_cpp_files,
@@ -533,10 +488,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     };
 
     const clang_tooling_inclusions_lib = block: {
-        const lib = addClangLibrary(ctx, .{
-            .name = "clangToolingInclusions",
-            .root_module = ctx.makeModule(),
-        });
+        const lib = addClangLibrary(ctx, "clangToolingInclusions", false);
         lib.addCSourceFiles(.{
             .root = ctx.clangLib("Tooling/Inclusions"),
             .files = sources.clang_tooling_inclusions_lib_cpp_files,
@@ -556,10 +508,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     };
 
     const clang_format_lib = block: {
-        const lib = addClangLibrary(ctx, .{
-            .name = "clangFormat",
-            .root_module = ctx.makeModule(),
-        });
+        const lib = addClangLibrary(ctx, "clangFormat", false);
         lib.addCSourceFiles(.{
             .root = ctx.clangLib("Format"),
             .files = sources.clang_format_lib_cpp_files,
@@ -580,10 +529,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     };
 
     const clang_index_lib = block: {
-        const lib = addClangLibrary(ctx, .{
-            .name = "clangIndex",
-            .root_module = ctx.makeModule(),
-        });
+        const lib = addClangLibrary(ctx, "clangIndex", false);
         lib.addCSourceFiles(.{
             .root = ctx.clangLib("Index"),
             .files = sources.clang_index_lib_cpp_files,
@@ -608,10 +554,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     };
 
     const clang_tooling_syntax_lib = block: {
-        const lib = addClangLibrary(ctx, .{
-            .name = "clangToolingSyntax",
-            .root_module = ctx.makeModule(),
-        });
+        const lib = addClangLibrary(ctx, "clangToolingSyntax", false);
         lib.addCSourceFiles(.{
             .root = ctx.clangLib("Tooling/Syntax"),
             .files = sources.clang_tooling_syntax_lib_cpp_files,
@@ -634,10 +577,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     };
 
     const clang_tooling_lib = block: {
-        const lib = addClangLibrary(ctx, .{
-            .name = "clangTooling",
-            .root_module = ctx.makeModule(),
-        });
+        const lib = addClangLibrary(ctx, "clangTooling", false);
         lib.addCSourceFiles(.{
             .root = ctx.clangLib("Tooling"),
             .files = sources.clang_tooling_lib_cpp_files,
@@ -667,10 +607,7 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
     };
 
     const clang_tooling_dependency_scanning_lib = block: {
-        const lib = addClangLibrary(ctx, .{
-            .name = "clangDependencyScanning",
-            .root_module = ctx.makeModule(),
-        });
+        const lib = addClangLibrary(ctx, "clangDependencyScanning", false);
         lib.addCSourceFiles(.{
             .root = ctx.clangLib("Tooling/DependencyScanning"),
             .files = sources.clang_tooling_dependency_scanning_lib_cpp_files,
