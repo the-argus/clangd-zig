@@ -24,6 +24,9 @@ pub const ClangExportedArtifacts = struct {
     tooling_lib: *Compile,
     tooling_syntax_lib: *Compile,
     tooling_inclusions_stdlib_lib: *Compile,
+    rewrite_lib: *Compile,
+    analysis_lib: *Compile,
+    clang_tooling_transformer_lib: *Compile,
 
     basic_version_config_header: *ConfigHeader,
     version_inc: LazyPath,
@@ -631,6 +634,59 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
         break :block lib;
     };
 
+    const clang_tooling_refactoring_lib = block: {
+        const lib = addClangLibrary(ctx, "clangToolingRefactoring", false);
+        lib.addCSourceFiles(.{
+            .root = ctx.clangLib("Tooling/Refactoring"),
+            .files = sources.clang_tooling_refactoring_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+        Context.includeAll(lib, &.{
+            clang_tablegenerated_incs,
+            clang_phase2_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+        });
+        Context.linkAll(lib, &.{
+            clang_ast_lib,
+            clang_ast_matchers_lib,
+            clang_basic_lib,
+            clang_format_lib,
+            clang_index_lib,
+            clang_lex_lib,
+            clang_rewrite_lib,
+            clang_tooling_core_lib,
+            llvm.support_lib,
+        });
+        break :block lib;
+    };
+
+    const clang_tooling_transformer_lib = block: {
+        const lib = addClangLibrary(ctx, "clangToolingTransformer", false);
+        lib.addCSourceFiles(.{
+            .root = ctx.clangLib("Tooling/Transformer"),
+            .files = sources.clang_tooling_transformer_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+        Context.includeAll(lib, &.{
+            clang_tablegenerated_incs,
+            clang_phase2_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+        });
+        Context.linkAll(lib, &.{
+            clang_ast_lib,
+            clang_ast_matchers_lib,
+            clang_basic_lib,
+            clang_lex_lib,
+            clang_tooling_core_lib,
+            clang_tooling_refactoring_lib,
+            llvm.support_lib,
+            llvm.frontend_openmp_lib,
+        });
+        break :block lib;
+    };
+
     return ClangExportedArtifacts{
         .ast_lib = clang_ast_lib,
         .ast_matchers_lib = clang_ast_matchers_lib,
@@ -648,6 +704,9 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
         .tooling_lib = clang_tooling_lib,
         .tooling_syntax_lib = clang_tooling_syntax_lib,
         .tooling_inclusions_stdlib_lib = clang_tooling_inclusions_stdlib_lib,
+        .rewrite_lib = clang_rewrite_lib,
+        .analysis_lib = clang_analysis_lib,
+        .clang_tooling_transformer_lib = clang_tooling_transformer_lib,
 
         .version_inc = version_inc,
         .config_config_header = config_config_header,

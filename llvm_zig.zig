@@ -1303,15 +1303,10 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .root_module = ctx.makeModule(),
         });
         const root = ctx.llvmLib("Support/BLAKE3");
-        var flags = std.ArrayList([]const u8).init(ctx.b.allocator);
-        const disable_simd = &[_][]const u8{ "-DBLAKE3_NO_AVX512", "-DBLAKE3_NO_AVX2", "-DBLAKE3_NO_SSE41", "-DBLAKE3_NO_SSE2" };
-        flags.ensureTotalCapacity(disable_simd.len + ctx.global_flags.items.len) catch @panic("OOM");
-        flags.appendSlice(ctx.global_flags.items) catch @panic("OOM");
-        flags.appendSlice(disable_simd) catch @panic("OOM");
         lib.addCSourceFiles(.{
             .root = root,
             .files = &.{ "blake3.c", "blake3_dispatch.c", "blake3_portable.c", "blake3_neon.c" },
-            .flags = flags.toOwnedSlice() catch @panic("OOM"),
+            .flags = ctx.dupeGlobalFlags(),
             .language = .c,
         });
         break :block lib;

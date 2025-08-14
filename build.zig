@@ -257,8 +257,6 @@ pub const Targets = struct {
     clangd_lib: ?*Compile = null,
     clangd_main_lib: ?*Compile = null,
     clangd_exe: ?*Compile = null,
-    // cte short for clang_tools_extra
-    cte_clang_tidy_config_config_header: ?*std.Build.Step.ConfigHeader = null,
 };
 
 pub const Context = struct {
@@ -318,6 +316,9 @@ pub const Context = struct {
                 out.global_flags.append("-D_FILE_OFFSET_BITS=64") catch @panic("OOM");
             }
         }
+
+        const disable_simd = &[_][]const u8{ "-DBLAKE3_NO_AVX512", "-DBLAKE3_NO_AVX2", "-DBLAKE3_NO_SSE41", "-DBLAKE3_NO_SSE2" };
+        out.global_flags.appendSlice(disable_simd) catch @panic("OOM");
 
         return out;
     }
@@ -734,14 +735,36 @@ pub fn build(b: *std.Build) !void {
     ctx.targets.llvm = @import("llvm_zig.zig").build(ctx);
     ctx.targets.clang = @import("clang.zig").build(ctx);
 
-    // clang tools extra stuff
+    const clang_tidy_config_header = ctx.b.addConfigHeader(.{ .style = .{
+        .cmake = ctx.srcPath("clang-tools-extra/clang-tidy/clang-tidy-config.h.cmake"),
+    }, .include_path = "clang-tidy-config.h" }, .{
+        .CLANG_TIDY_ENABLE_STATIC_ANALYZER = false,
+    });
 
-    {
-        const opts = ctx.paths.clang_tools_extra.clang_tidy.clang_tidy_config_config_header.makeOptions();
-        ctx.targets.cte_clang_tidy_config_config_header = ctx.b.addConfigHeader(opts, .{
-            .CLANG_TIDY_ENABLE_STATIC_ANALYZER = true,
-        });
-    }
+    const clangd_config_headers = &.{
+        clang_tidy_config_header,
+        ctx.targets.clang.?.config_config_header,
+        ctx.targets.clang.?.basic_version_config_header,
+        ctx.targets.llvm.?.public_config_header,
+        ctx.targets.llvm.?.abi_breaking_config_header,
+        ctx.targets.llvm.?.features_inc_config_header,
+        ctx.targets.llvm.?.targets_def_config_header,
+        ctx.targets.llvm.?.asm_parsers_def_config_header,
+        ctx.targets.llvm.?.asm_printers_def_config_header,
+        ctx.targets.llvm.?.disassemblers_def_config_header,
+        ctx.targets.llvm.?.target_mcas_def_config_header,
+        ctx.targets.llvm.?.target_exegesis_def_config_header,
+    };
+
+    const clangd_include_paths = &.{
+        ctx.srcPath("llvm/include"),
+        ctx.srcPath("clang/include"),
+        ctx.srcPath("clang-tools-extra/include-cleaner/include"),
+        ctx.srcPath("clang-tools-extra/clangd"),
+        ctx.targets.clang.?.tablegenerated_incs,
+        ctx.targets.clang.?.phase2_tablegenerated_incs,
+        ctx.targets.llvm.?.tablegenerated_incs,
+    };
 
     const clangd_lib = block: {
         const lib = ctx.b.addLibrary(.{
@@ -749,34 +772,17 @@ pub fn build(b: *std.Build) !void {
             .linkage = .static,
             .root_module = ctx.makeModule(),
         });
-        lib.linkLibCpp();
-        lib.addIncludePath(ctx.srcPath("clang-tools-extra/include-cleaner/include"));
-        lib.addIncludePath(ctx.srcPath("clang-tools-extra/clangd"));
-        ctx.linkTargetClang(lib);
-        // TODO: configure and install clang-tidy headers, add the build dir as include path
-        lib.addConfigHeader(ctx.targets.cte_clang_tidy_config_config_header.?);
-        lib.addConfigHeader(ctx.targets.llvm.?.features_inc_config_header);
-
         lib.addCSourceFiles(.{
             .root = ctx.srcPath("clang-tools-extra/clangd"),
             .files = sources.cpp_files,
-            .flags = &.{},
+            .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
+        lib.linkLibCpp();
+        Context.configAll(lib, clangd_config_headers);
+        Context.includeAll(lib, clangd_include_paths);
         break :block lib;
     };
-
-    // libs to build and link
-    // ${LLVM_PTHREAD_LIB}
-    // clangIncludeCleaner
-    // clangTidy
-    // clangTidyUtils
-    // clangdSupport
-
-    // TODO: link ALL_CLANG_TIDY_CHECKS libraries if (clangd_tidy_checks)
-
-    // TODO: include generated COMPLETIONMODEL headers and necessary sources
-    // lib.addIncludePath(...);
 
     const clangd_main_lib = block: {
         const lib = ctx.b.addLibrary(.{
@@ -784,17 +790,123 @@ pub fn build(b: *std.Build) !void {
             .linkage = .static,
             .root_module = ctx.makeModule(),
         });
-        lib.linkLibCpp();
         lib.addCSourceFiles(.{
             .root = ctx.srcPath("clang-tools-extra/clangd/tool"),
             .files = sources.tool_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
         });
-        ctx.linkTargetClang(lib);
-        lib.addIncludePath(ctx.srcPath("clang-tools-extra/clangd"));
-        lib.addIncludePath(ctx.srcPath("clang-tools-extra/include-cleaner/include"));
-        lib.addConfigHeader(ctx.targets.cte_clang_tidy_config_config_header.?);
-        lib.addConfigHeader(ctx.targets.llvm.?.features_inc_config_header);
+        lib.linkLibCpp();
+        Context.configAll(lib, clangd_config_headers);
+        Context.includeAll(lib, clangd_include_paths);
+        break :block lib;
+    };
+
+    const clangd_support_lib = block: {
+        const lib = ctx.b.addLibrary(.{
+            .name = "clangd_main_lib",
+            .root_module = ctx.makeModule(),
+        });
+        lib.addCSourceFiles(.{
+            .root = ctx.srcPath("clang-tools-extra/clangd/support"),
+            .files = sources.clangd_support_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+        Context.configAll(lib, clangd_config_headers);
+        Context.includeAll(lib, clangd_include_paths);
+        Context.linkAll(lib, &.{
+            ctx.targets.clang.?.basic_lib,
+            ctx.targets.clang.?.lex_lib,
+        });
+        lib.linkLibCpp();
+        break :block lib;
+    };
+
+    const clang_tidy_lib = block: {
+        const lib = ctx.b.addLibrary(.{
+            .name = "clangTidy",
+            .root_module = ctx.makeModule(),
+        });
+        lib.addCSourceFiles(.{
+            .root = ctx.srcPath("clang-tools-extra/clang-tidy"),
+            .files = sources.clang_tidy_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+        lib.linkLibCpp();
+        Context.linkAll(lib, &.{
+            ctx.targets.clang.?.ast_lib,
+            ctx.targets.clang.?.ast_matchers_lib,
+            ctx.targets.clang.?.analysis_lib,
+            ctx.targets.clang.?.basic_lib,
+            ctx.targets.clang.?.format_lib,
+            ctx.targets.clang.?.frontend_lib,
+            ctx.targets.clang.?.lex_lib,
+            ctx.targets.clang.?.rewrite_lib,
+            ctx.targets.clang.?.serialization_lib,
+            ctx.targets.clang.?.tooling_lib,
+            ctx.targets.clang.?.tooling_core_lib,
+        });
+        Context.configAll(lib, clangd_config_headers);
+        Context.includeAll(lib, clangd_include_paths);
+        break :block lib;
+    };
+
+    const include_cleaner_lib = block: {
+        const lib = ctx.b.addLibrary(.{
+            .name = "clangIncludeCleaner",
+            .root_module = ctx.makeModule(),
+        });
+        lib.addCSourceFiles(.{
+            .root = ctx.srcPath("clang-tools-extra/include-cleaner/lib"),
+            .files = sources.clang_tooling_extra_include_cleaner_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+        lib.linkLibCpp();
+        Context.linkAll(lib, &.{
+            ctx.targets.llvm.?.support_lib,
+            ctx.targets.clang.?.ast_lib,
+            ctx.targets.clang.?.basic_lib,
+            ctx.targets.clang.?.format_lib,
+            ctx.targets.clang.?.lex_lib,
+            ctx.targets.clang.?.tooling_core_lib,
+            ctx.targets.clang.?.tooling_inclusions_lib,
+            ctx.targets.clang.?.tooling_inclusions_stdlib_lib,
+        });
+        Context.configAll(lib, clangd_config_headers);
+        Context.includeAll(lib, clangd_include_paths);
+        break :block lib;
+    };
+
+    const clang_tidy_utils_lib = block: {
+        const lib = ctx.b.addLibrary(.{
+            .name = "clangTidyUtils",
+            .root_module = ctx.makeModule(),
+        });
+        lib.addCSourceFiles(.{
+            .root = ctx.srcPath("clang-tools-extra/clang-tidy/utils"),
+            .files = sources.clang_tidy_utils_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+        lib.linkLibCpp();
+        Context.linkAll(lib, &.{
+            ctx.targets.llvm.?.frontend_openmp_lib,
+            ctx.targets.llvm.?.support_lib,
+            clang_tidy_lib,
+            include_cleaner_lib,
+            ctx.targets.clang.?.ast_lib,
+            ctx.targets.clang.?.ast_matchers_lib,
+            ctx.targets.clang.?.basic_lib,
+            ctx.targets.clang.?.lex_lib,
+            ctx.targets.clang.?.sema_lib,
+            ctx.targets.clang.?.tooling_lib,
+            ctx.targets.clang.?.clang_tooling_transformer_lib,
+        });
+        Context.configAll(lib, clangd_config_headers);
+        Context.includeAll(lib, clangd_include_paths);
         break :block lib;
     };
 
@@ -809,10 +921,18 @@ pub fn build(b: *std.Build) !void {
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
-        exe.linkLibrary(clangd_lib);
-        exe.linkLibrary(clangd_main_lib);
-        exe.linkLibrary(ctx.targets.llvm.?.windows_driver_lib);
-        exe.linkLibrary(ctx.targets.llvm.?.support_blake3_lib);
+        exe.linkLibCpp();
+        Context.configAll(exe, clangd_config_headers);
+        Context.linkAll(exe, &.{
+            clangd_lib,
+            clangd_main_lib,
+            ctx.targets.llvm.?.windows_driver_lib,
+            ctx.targets.llvm.?.support_blake3_lib,
+            clangd_support_lib,
+            clang_tidy_lib,
+            clang_tidy_utils_lib,
+        });
+        Context.includeAll(exe, clangd_include_paths);
         break :block exe;
     };
 

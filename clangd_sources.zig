@@ -96,6 +96,63 @@ pub const cpp_files = &.{
     "refactor/Tweak.cpp",
 };
 
+pub const clangd_support_lib_cpp_files = &.{
+    "Bracket.cpp",
+    "Cancellation.cpp",
+    "Context.cpp",
+    "DirectiveTree.cpp",
+    "FileCache.cpp",
+    "Lex.cpp",
+    "Logger.cpp",
+    "Markup.cpp",
+    "MemoryTree.cpp",
+    "Path.cpp",
+    "Shutdown.cpp",
+    "ThreadCrashReporter.cpp",
+    "Threading.cpp",
+    "ThreadsafeFS.cpp",
+    "Token.cpp",
+    "Trace.cpp",
+};
+
+pub const clang_tidy_lib_cpp_files = &.{
+    "ClangTidy.cpp",
+    "ClangTidyCheck.cpp",
+    "ClangTidyModule.cpp",
+    "ClangTidyDiagnosticConsumer.cpp",
+    "ClangTidyOptions.cpp",
+    "ClangTidyProfiling.cpp",
+    "ExpandModularHeadersPPCallbacks.cpp",
+    "GlobList.cpp",
+    "NoLintDirectiveHandler.cpp",
+};
+
+pub const clang_tidy_utils_lib_cpp_files = &.{
+    "Aliasing.cpp",
+    "ASTUtils.cpp",
+    "BracesAroundStatement.cpp",
+    "DeclRefExprUtils.cpp",
+    "DesignatedInitializers.cpp",
+    "ExceptionAnalyzer.cpp",
+    "ExceptionSpecAnalyzer.cpp",
+    "ExprSequence.cpp",
+    "FileExtensionsUtils.cpp",
+    "FormatStringConverter.cpp",
+    "FixItHintUtils.cpp",
+    "HeaderGuard.cpp",
+    "IncludeInserter.cpp",
+    "IncludeSorter.cpp",
+    "LexerUtils.cpp",
+    "Matchers.cpp",
+    "NamespaceAliaser.cpp",
+    "OptionsUtils.cpp",
+    "RenamerClangTidyCheck.cpp",
+    "TransformerClangTidyCheck.cpp",
+    "TypeTraits.cpp",
+    "UseRangesCheck.cpp",
+    "UsingInserter.cpp",
+};
+
 pub const llvm_tablegen_common_lib_cpp_files = &.{
     "GlobalISel/CodeExpander.cpp",
     "GlobalISel/CombinerUtils.cpp",
@@ -1893,4 +1950,40 @@ pub const llvm_frontend_offloading_lib_cpp_files = &.{
 
 pub const llvm_windows_driver_lib_cpp_files = &.{
     "MSVCPaths.cpp",
+};
+
+pub const clang_tooling_transformer_lib_cpp_files = &.{
+    "Parsing.cpp",
+    "RangeSelector.cpp",
+    "RewriteRule.cpp",
+    "SourceCode.cpp",
+    "SourceCodeBuilders.cpp",
+    "Stencil.cpp",
+    "Transformer.cpp",
+};
+
+pub const clang_tooling_refactoring_lib_cpp_files = &.{
+    "ASTSelection.cpp",
+    "ASTSelectionRequirements.cpp",
+    "AtomicChange.cpp",
+    "Extract/Extract.cpp",
+    "Extract/SourceExtraction.cpp",
+    "Lookup.cpp",
+    "RefactoringActions.cpp",
+    "Rename/RenamingAction.cpp",
+    "Rename/SymbolOccurrences.cpp",
+    "Rename/USRFinder.cpp",
+    "Rename/USRFindingAction.cpp",
+    "Rename/USRLocFinder.cpp",
+};
+
+pub const clang_tooling_extra_include_cleaner_lib_cpp_files = &.{
+    "Analysis.cpp",
+    "IncludeSpeller.cpp",
+    "FindHeaders.cpp",
+    "HTMLReport.cpp",
+    "LocateSymbol.cpp",
+    "Record.cpp",
+    "Types.cpp",
+    "WalkAST.cpp",
 };
