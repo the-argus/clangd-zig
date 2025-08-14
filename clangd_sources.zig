@@ -1890,3 +1890,7 @@ pub const llvm_frontend_offloading_lib_cpp_files = &.{
     "Utility.cpp",
     "OffloadWrapper.cpp",
 };
+
+pub const llvm_windows_driver_lib_cpp_files = &.{
+    "MSVCPaths.cpp",
+};

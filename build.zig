@@ -811,6 +811,8 @@ pub fn build(b: *std.Build) !void {
         });
         exe.linkLibrary(clangd_lib);
         exe.linkLibrary(clangd_main_lib);
+        exe.linkLibrary(ctx.targets.llvm.?.windows_driver_lib);
+        exe.linkLibrary(ctx.targets.llvm.?.support_blake3_lib);
         break :block exe;
     };
 

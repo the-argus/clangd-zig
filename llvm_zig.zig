@@ -17,6 +17,8 @@ pub const LLVMExportedArtifacts = struct {
     option_lib: *Compile,
     target_parser_lib: *Compile,
     all_targets_infos_lib: *Compile,
+    windows_driver_lib: *Compile,
+    support_blake3_lib: *Compile,
 
     // llvm/include/llvm/Config/llvm-config.h.cmake
     public_config_header: *ConfigHeader,
@@ -1295,12 +1297,55 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         all_targets_infos_lib.linkLibrary(lib);
     }
 
+    const support_blake3_lib = block: {
+        const lib = addLLVMLibrary(ctx, .{
+            .name = "clangSupportBLAKE3",
+            .root_module = ctx.makeModule(),
+        });
+        const root = ctx.llvmLib("Support/BLAKE3");
+        var flags = std.ArrayList([]const u8).init(ctx.b.allocator);
+        const disable_simd = &[_][]const u8{ "-DBLAKE3_NO_AVX512", "-DBLAKE3_NO_AVX2", "-DBLAKE3_NO_SSE41", "-DBLAKE3_NO_SSE2" };
+        flags.ensureTotalCapacity(disable_simd.len + ctx.global_flags.items.len) catch @panic("OOM");
+        flags.appendSlice(ctx.global_flags.items) catch @panic("OOM");
+        flags.appendSlice(disable_simd) catch @panic("OOM");
+        lib.addCSourceFiles(.{
+            .root = root,
+            .files = &.{ "blake3.c", "blake3_dispatch.c", "blake3_portable.c", "blake3_neon.c" },
+            .flags = flags.toOwnedSlice() catch @panic("OOM"),
+            .language = .c,
+        });
+        break :block lib;
+    };
+
+    const windows_driver_lib = block: {
+        const lib = addLLVMLibrary(ctx, .{
+            .name = "clangWindowsDriver",
+            .root_module = ctx.makeModule(),
+        });
+        const root = ctx.llvmLib("WindowsDriver");
+        lib.addCSourceFiles(.{
+            .root = root,
+            .files = sources.llvm_windows_driver_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+        Context.includeAll(lib, &.{ctx.llvmInc("WindowsDriver")});
+        Context.linkAll(lib, &.{
+            llvm_option_lib,
+            llvm_support_lib,
+            llvm_target_parser_lib,
+        });
+        break :block lib;
+    };
+
     return LLVMExportedArtifacts{
         .option_lib = llvm_option_lib,
         .support_lib = llvm_support_lib,
         .target_parser_lib = llvm_target_parser_lib,
         .frontend_openmp_lib = llvm_frontend_openmp_lib,
         .all_targets_infos_lib = all_targets_infos_lib,
+        .support_blake3_lib = support_blake3_lib,
+        .windows_driver_lib = windows_driver_lib,
         .public_config_header = public_config_header,
         //.private_config_header = private_config_header,
         .targets_def_config_header = targets_def_config_header,
