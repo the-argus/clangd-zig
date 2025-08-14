@@ -500,14 +500,26 @@ pub fn getPhase2ClangTablegenDescriptions(b: *std.Build, root: std.Build.LazyPat
 }
 
 pub fn getLLVMTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []const ClangTablegenDescription {
-    const includes = b.allocator.create([4]LazyPath) catch @panic("OOM");
+    const includes = b.allocator.create([5]LazyPath) catch @panic("OOM");
     includes.* = [_]LazyPath{
         root.path(b, "llvm/include"),
         root.path(b, "llvm/lib/Target/ARM"),
         root.path(b, "llvm/lib/Target/AArch64"),
         root.path(b, "llvm/lib/Target/RISCV"),
+        root.path(b, "llvm/lib/Target/WebAssembly"),
     };
 
+    const webassembly_targetinfo_targets = &[_]ClangTablegenTarget{
+        .{ .output_basename = "WebAssemblyGenAsmMatcher.inc", .flags = &.{"-gen-asm-matcher"}, .folder = .none },
+        .{ .output_basename = "WebAssemblyGenAsmWriter.inc", .flags = &.{"-gen-asm-writer"}, .folder = .none },
+        .{ .output_basename = "WebAssemblyGenDAGISel.inc", .flags = &.{"-gen-dag-isel"}, .folder = .none },
+        .{ .output_basename = "WebAssemblyGenDisassemblerTables.inc", .flags = &.{"-gen-disassembler"}, .folder = .none },
+        .{ .output_basename = "WebAssemblyGenFastISel.inc", .flags = &.{"-gen-fast-isel"}, .folder = .none },
+        .{ .output_basename = "WebAssemblyGenInstrInfo.inc", .flags = &.{"-gen-instr-info"}, .folder = .none },
+        .{ .output_basename = "WebAssemblyGenMCCodeEmitter.inc", .flags = &.{"-gen-emitter"}, .folder = .none },
+        .{ .output_basename = "WebAssemblyGenRegisterInfo.inc", .flags = &.{"-gen-register-info"}, .folder = .none },
+        .{ .output_basename = "WebAssemblyGenSubtargetInfo.inc", .flags = &.{"-gen-subtarget"}, .folder = .none },
+    };
     const options_targets = &[_]ClangTablegenTarget{.{ .output_basename = "Options.inc", .flags = &.{"-gen-opt-parser-defs"}, .folder = .driver }};
     const arm_targetparser_targets = &[_]ClangTablegenTarget{.{ .output_basename = "ARMTargetParserDef.inc", .flags = &.{"-gen-arm-target-def"}, .folder = .target_parser }};
     const aarch64_targetparser_targets = &[_]ClangTablegenTarget{.{ .output_basename = "AArch64TargetParserDef.inc", .flags = &.{"-gen-arm-target-def"}, .folder = .target_parser }};
@@ -541,6 +553,11 @@ pub fn getLLVMTablegenDescriptions(b: *std.Build, root: std.Build.LazyPath) []co
         .{
             .td_file = root.path(b, "llvm/lib/Target/RISCV/RISCV.td"),
             .targets = riscv_targetparser_targets,
+            .td_includes = includes,
+        },
+        .{
+            .td_file = root.path(b, "llvm/lib/Target/WebAssembly/WebAssembly.td"),
+            .targets = webassembly_targetinfo_targets,
             .td_includes = includes,
         },
     };

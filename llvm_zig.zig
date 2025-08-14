@@ -16,7 +16,7 @@ pub const LLVMExportedArtifacts = struct {
     frontend_openmp_lib: *Compile,
     option_lib: *Compile,
     target_parser_lib: *Compile,
-    // all_targets_infos_lib: *Compile,
+    all_targets_infos_lib: *Compile,
 
     // llvm/include/llvm/Config/llvm-config.h.cmake
     public_config_header: *ConfigHeader,
@@ -139,6 +139,21 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
             .CLANGD_DECISION_FOREST = ctx.opts.clangd_decision_forest,
         },
     );
+
+    const vcs_revision_inc_writefile = ctx.b.addWriteFiles();
+    _ = vcs_revision_inc_writefile.add("VCSRevision.h",
+        \\#undef CLANG_REVISION
+        \\#undef CLANG_REPOSITORY
+        \\#undef LLVM_REVISION
+        \\#undef LLVM_REPOSITORY
+    );
+    // copy the header so its in llvm/Support
+    const vcs_revision_inc_in_subdir_writefile = ctx.b.addWriteFiles();
+    _ = vcs_revision_inc_in_subdir_writefile.addCopyFile(
+        vcs_revision_inc_writefile.getDirectory().path(ctx.b, "VCSRevision.h"),
+        "llvm/Support/VCSRevision.h",
+    );
+    const revision_inc = vcs_revision_inc_in_subdir_writefile.getDirectory();
 
     const public_opts = ctx.paths.llvm.include.llvm.config.llvm_public_config_header.makeOptions();
     const public_config_header = ctx.b.addConfigHeader(public_opts, .{
@@ -389,6 +404,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
     llvm_headers = &headers;
     var include_paths = [_]LazyPath{
         ctx.srcPath("llvm/include"),
+        revision_inc,
     };
     llvm_include_paths = &include_paths;
 
@@ -1223,13 +1239,65 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         break :block lib;
     };
 
+    // all target infos
+    const all_targets_infos_lib = block: {
+        const lib = addLLVMLibrary(ctx, .{
+            .name = "clangAllTargetsInfos",
+            .root_module = ctx.makeModule(),
+        });
+        lib.addCSourceFiles(.{
+            .root = ctx.llvmLib("Target"),
+            .files = sources.llvm_target_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+        Context.linkAll(lib, &.{
+            llvm_analysis_lib,
+            llvm_core_lib,
+            llvm_mc_lib,
+            llvm_support_lib,
+            llvm_target_parser_lib,
+        });
+        Context.includeAll(lib, &.{
+            llvm_min_tablegenerated_incs,
+            ctx.llvmInc("Target"),
+        });
+        break :block lib;
+    };
+
+    inline for (@typeInfo(@TypeOf(ctx.opts.supported_targets.all)).@"struct".fields) |field| {
+        const lib = addLLVMLibrary(ctx, .{
+            .name = "clangAllTargetsInfos",
+            .root_module = ctx.makeModule(),
+        });
+
+        const path = ctx.llvmLib("Target/" ++ field.name);
+        lib.addCSourceFiles(.{
+            .root = path.path(ctx.b, "TargetInfo"),
+            .files = &.{field.name ++ "TargetInfo.cpp"},
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+
+        Context.linkAll(lib, &.{
+            llvm_mc_lib,
+            llvm_support_lib,
+            llvm_target_parser_lib, // DirectX wants this
+        });
+        Context.includeAll(lib, &.{
+            path,
+            tablegenerated_incs,
+        });
+
+        all_targets_infos_lib.linkLibrary(lib);
+    }
+
     return LLVMExportedArtifacts{
         .option_lib = llvm_option_lib,
         .support_lib = llvm_support_lib,
         .target_parser_lib = llvm_target_parser_lib,
         .frontend_openmp_lib = llvm_frontend_openmp_lib,
-        //.all_targets_infos_lib = ,
-
+        .all_targets_infos_lib = all_targets_infos_lib,
         .public_config_header = public_config_header,
         //.private_config_header = private_config_header,
         .targets_def_config_header = targets_def_config_header,
