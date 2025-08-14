@@ -928,6 +928,8 @@ pub fn build(b: *std.Build) !void {
             clangd_main_lib,
             ctx.targets.llvm.?.windows_driver_lib,
             ctx.targets.llvm.?.support_blake3_lib,
+            ctx.targets.clang.?.tooling_syntax_lib,
+            ctx.targets.clang.?.tooling_dependency_scanning_lib,
             clangd_support_lib,
             clang_tidy_lib,
             clang_tidy_utils_lib,

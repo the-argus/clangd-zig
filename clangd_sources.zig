@@ -1815,6 +1815,14 @@ pub const llvm_mc_parser_lib_cpp_files = &.{
     "XCOFFAsmParser.cpp",
 };
 
+pub const llvm_mc_disassembler_lib_cpp_files = &.{
+    "Disassembler.cpp",
+    "MCDisassembler.cpp",
+    "MCExternalSymbolizer.cpp",
+    "MCRelocationInfo.cpp",
+    "MCSymbolizer.cpp",
+};
+
 pub const llvm_textapi_lib_cpp_files = &.{
     "Architecture.cpp",
     "ArchitectureSet.cpp",

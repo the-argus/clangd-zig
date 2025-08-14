@@ -20,6 +20,10 @@ pub const LLVMExportedArtifacts = struct {
     windows_driver_lib: *Compile,
     support_blake3_lib: *Compile,
 
+    mc_parser_lib: *Compile,
+    mc_disassembler_lib: *Compile,
+    asm_parser_lib: *Compile,
+
     // llvm/include/llvm/Config/llvm-config.h.cmake
     public_config_header: *ConfigHeader,
     // llvm/include/llvm/Config/config.h.cmake
@@ -1314,7 +1318,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
 
     const windows_driver_lib = block: {
         const lib = addLLVMLibrary(ctx, .{
-            .name = "clangWindowsDriver",
+            .name = "llvmWindowsDriver",
             .root_module = ctx.makeModule(),
         });
         const root = ctx.llvmLib("WindowsDriver");
@@ -1333,6 +1337,68 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         break :block lib;
     };
 
+    const mc_parser_lib = block: {
+        const lib = addLLVMLibrary(ctx, .{
+            .name = "llvmMCParser",
+            .root_module = ctx.makeModule(),
+        });
+        const root = ctx.llvmLib("MC/MCParser");
+        lib.addCSourceFiles(.{
+            .root = root,
+            .files = sources.llvm_mc_parser_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+        Context.includeAll(lib, &.{ctx.llvmInc("MC/MCParser")});
+        Context.linkAll(lib, &.{
+            llvm_mc_lib,
+            llvm_support_lib,
+            llvm_target_parser_lib,
+        });
+        break :block lib;
+    };
+
+    const mc_disassembler_lib = block: {
+        const lib = addLLVMLibrary(ctx, .{
+            .name = "llvmMCDisassembler",
+            .root_module = ctx.makeModule(),
+        });
+        const root = ctx.llvmLib("MC/MCDisassembler");
+        lib.addCSourceFiles(.{
+            .root = root,
+            .files = sources.llvm_mc_disassembler_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+        Context.linkAll(lib, &.{
+            llvm_mc_lib,
+            llvm_support_lib,
+            llvm_target_parser_lib,
+        });
+        break :block lib;
+    };
+
+    const asm_parser_lib = block: {
+        const lib = addLLVMLibrary(ctx, .{
+            .name = "llvmASMParser",
+            .root_module = ctx.makeModule(),
+        });
+        const root = ctx.llvmLib("AsmParser");
+        lib.addCSourceFiles(.{
+            .root = root,
+            .files = sources.llvm_asm_parser_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+        Context.includeAll(lib, &.{ tablegenerated_incs, ctx.llvmInc("AsmParser") });
+        Context.linkAll(lib, &.{
+            llvm_binary_format_lib,
+            llvm_support_lib,
+            llvm_core_lib,
+        });
+        break :block lib;
+    };
+
     return LLVMExportedArtifacts{
         .option_lib = llvm_option_lib,
         .support_lib = llvm_support_lib,
@@ -1341,6 +1407,10 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         .all_targets_infos_lib = all_targets_infos_lib,
         .support_blake3_lib = support_blake3_lib,
         .windows_driver_lib = windows_driver_lib,
+        .mc_parser_lib = mc_parser_lib,
+        .asm_parser_lib = asm_parser_lib,
+        .mc_disassembler_lib = mc_disassembler_lib,
+
         .public_config_header = public_config_header,
         //.private_config_header = private_config_header,
         .targets_def_config_header = targets_def_config_header,
