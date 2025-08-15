@@ -2,6 +2,7 @@ const std = @import("std");
 
 const Build = @import("build.zig");
 const LazyPath = std.Build.LazyPath;
+const LLVMExportedArtifacts = @import("llvm_zig.zig").LLVMExportedArtifacts;
 const ConfigHeader = std.Build.Step.ConfigHeader;
 const Compile = std.Build.Step.Compile;
 const Context = Build.Context;
@@ -33,6 +34,13 @@ pub const ClangExportedArtifacts = struct {
     config_config_header: *ConfigHeader,
     tablegenerated_incs: LazyPath,
     phase2_tablegenerated_incs: LazyPath,
+
+    main_include_dir: LazyPath,
+
+    pub fn includeAll(clang: *const @This(), c: *Compile) void {
+        // .Target doesnt matter- no linking
+        Context.linkIncludeAndConfigureExportedType(@This(), clang, c, .Target, .LinkNone);
+    }
 };
 
 fn compileSupportLib(ctx: *const Context, is_host: bool) *Compile {
@@ -48,9 +56,10 @@ fn compileSupportLib(ctx: *const Context, is_host: bool) *Compile {
 
 var clang_headers: ?[]*ConfigHeader = null;
 var clang_include_paths: ?[]LazyPath = null;
+var global_llvm: ?*const LLVMExportedArtifacts = null;
 
-fn addClangIncludesAndConfigHeaders(ctx: *const Context, c: *Compile, is_host: bool) void {
-    if (is_host) ctx.linkHostLLVM(c) else ctx.linkTargetLLVM(c);
+fn addClangIncludesAndConfigHeaders(c: *Compile) void {
+    global_llvm.?.includeAll(c);
     Context.configAll(c, clang_headers.?);
     Context.includeAll(c, clang_include_paths.?);
 }
@@ -60,7 +69,8 @@ fn addClangExecutable(ctx: *const Context, name: []const u8, is_host: bool) *Com
         .name = name,
         .root_module = if (is_host) ctx.makeHostModule() else ctx.makeModule(),
     });
-    addClangIncludesAndConfigHeaders(ctx, out, is_host);
+    addClangIncludesAndConfigHeaders(out);
+    out.linkLibCpp();
     return out;
 }
 
@@ -69,14 +79,16 @@ fn addClangLibrary(ctx: *const Context, name: []const u8, is_host: bool) *Compil
         .name = name,
         .root_module = if (is_host) ctx.makeHostModule() else ctx.makeModule(),
     });
-    addClangIncludesAndConfigHeaders(ctx, out, is_host);
+    addClangIncludesAndConfigHeaders(out);
+    out.linkLibCpp();
     return out;
 }
 
 /// Fills out all the fields in Context.targets that start with clang_*
 /// Called from root build.zig
-pub fn build(ctx: *const Context) ClangExportedArtifacts {
-    const llvm = ctx.targets.llvm.?;
+pub fn build(ctx: *const Context, llvm: *const LLVMExportedArtifacts) ClangExportedArtifacts {
+    global_llvm = llvm;
+
     const basic_version_config_header = ctx.b.addConfigHeader(
         ctx.paths.clang.include.clang.basic.clang_basic_version_config_header.makeOptions(),
         .{
@@ -713,5 +725,6 @@ pub fn build(ctx: *const Context) ClangExportedArtifacts {
         .basic_version_config_header = basic_version_config_header,
         .tablegenerated_incs = clang_tablegenerated_incs,
         .phase2_tablegenerated_incs = clang_phase2_tablegenerated_incs,
+        .main_include_dir = ctx.srcPath("clang/include"),
     };
 }

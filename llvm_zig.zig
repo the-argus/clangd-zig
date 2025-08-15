@@ -44,6 +44,7 @@ pub const LLVMExportedArtifacts = struct {
     host_component_tblgen_exe: *Compile,
 
     tablegenerated_incs: LazyPath,
+    main_include_dir: LazyPath,
 
     // llvm_demangle_lib: ?*Compile = null,
     // llvm_binary_format_lib: ?*Compile = null,
@@ -62,6 +63,11 @@ pub const LLVMExportedArtifacts = struct {
     // llvm_debug_info_pdb_lib: ?*Compile = null,
     // llvm_debug_info_symbolize_lib: ?*Compile = null,
     // llvm_profile_data_lib: ?*Compile = null,
+
+    pub fn includeAll(llvm: *const @This(), c: *Compile) void {
+        // .Target doesnt matter- no linking
+        Context.linkIncludeAndConfigureExportedType(@This(), llvm, c, .Target, .LinkNone);
+    }
 };
 
 const llvm_all_targets = &[_][]const u8{
@@ -1427,6 +1433,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         .target_exegesis_def_config_header = target_exegesis_def_config_header,
 
         .tablegenerated_incs = tablegenerated_incs,
+        .main_include_dir = ctx.srcPath("llvm/include"),
     };
 }
 
@@ -1531,7 +1538,7 @@ fn buildSupport(
     support_lib.addIncludePath(ctx.llvmLib("Support/Windows"));
     support_lib.addIncludePath(ctx.llvmLib("Support/Unix"));
 
-    if (ctx.targets.zlib) |zlib| {
+    if (ctx.third_party.zlib) |zlib| {
         support_lib.linkLibrary(zlib);
     } else {
         std.debug.assert(!ctx.opts.llvm_enable_zlib);
