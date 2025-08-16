@@ -721,7 +721,6 @@ pub fn build(b: *std.Build) !void {
         ctx.third_party.zlib = zlib_builder.build(zlib_dep, ctx.makeModule());
     }
 
-    // fill out the components of ctx.targets which begin with "llvm_"
     const llvm = @import("llvm_zig.zig").build(ctx);
     const clang = @import("clang.zig").build(ctx, &llvm);
     const clang_tidy = @import("clang_tidy.zig").build(ctx, &llvm, &clang);

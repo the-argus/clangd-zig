@@ -1995,3 +1995,28 @@ pub const clang_tooling_extra_include_cleaner_lib_cpp_files = &.{
     "Types.cpp",
     "WalkAST.cpp",
 };
+
+pub const clang_analysis_flow_sensitive_lib_cpp_files = &.{
+    "AdornedCFG.cpp",
+    "Arena.cpp",
+    "ASTOps.cpp",
+    "CNFFormula.cpp",
+    "DataflowAnalysisContext.cpp",
+    "DataflowEnvironment.cpp",
+    "Formula.cpp",
+    "HTMLLogger.cpp",
+    "Logger.cpp",
+    "RecordOps.cpp",
+    "SimplifyConstraints.cpp",
+    "SmartPointerAccessorCaching.cpp",
+    "Transfer.cpp",
+    "TypeErasedDataflowAnalysis.cpp",
+    "Value.cpp",
+    "WatchedLiteralsSolver.cpp",
+    "DebugSupport.cpp",
+};
+
+pub const clang_analysis_flow_sensitive_models_lib_cpp_files = &.{
+    "ChromiumCheckModel.cpp",
+    "UncheckedOptionalAccessModel.cpp",
+};

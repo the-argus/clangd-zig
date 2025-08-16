@@ -25,8 +25,11 @@ const std = @import("std");
 
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.smp_allocator);
+    var inner_arena = std.heap.ArenaAllocator.init(std.heap.smp_allocator);
+    defer inner_arena.deinit();
     defer arena.deinit();
     const alloc = arena.allocator();
+    const inner_allocator = inner_arena.allocator();
 
     var args = try std.process.argsWithAllocator(alloc);
     defer args.deinit();
@@ -43,17 +46,18 @@ pub fn main() !void {
     const infiles = arglist.items[2..];
 
     const cwd = std.fs.cwd();
-    const out = try cwd.openFile(outfile, .{ .mode = .write_only });
+    const out = try cwd.createFile(outfile, .{});
     defer out.close();
     const out_writer = out.writer();
     for (infiles) |filename| {
-        const varname = try std.mem.replaceOwned(u8, alloc, std.fs.path.basename(filename), ".", "_");
+        defer _ = inner_arena.reset(.retain_capacity);
+        const varname = try std.mem.replaceOwned(u8, inner_allocator, std.fs.path.basename(filename), ".", "_");
         try std.fmt.format(out_writer, "const char {s} [] = \n", .{varname});
         const file = try cwd.openFile(filename, .{});
         defer file.close();
 
         while (true) {
-            const line = file.reader().readUntilDelimiterAlloc(alloc, '\n', 100000) catch break;
+            const line = file.reader().readUntilDelimiterAlloc(inner_allocator, '\n', 100000) catch break;
             try std.fmt.format(out_writer, "  R\"x({s})x\" \"\\n\"\n", .{line});
         }
         try std.fmt.format(out_writer, "  ;\n", .{});

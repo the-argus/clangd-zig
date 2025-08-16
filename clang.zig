@@ -25,9 +25,11 @@ pub const ClangExportedArtifacts = struct {
     tooling_lib: *Compile,
     tooling_syntax_lib: *Compile,
     tooling_inclusions_stdlib_lib: *Compile,
+    tooling_transformer_lib: *Compile,
     rewrite_lib: *Compile,
     analysis_lib: *Compile,
-    clang_tooling_transformer_lib: *Compile,
+    analysis_flow_sensitive_lib: *Compile,
+    analysis_flow_sensitive_models_lib: *Compile,
 
     basic_version_config_header: *ConfigHeader,
     version_inc: LazyPath,
@@ -673,6 +675,69 @@ pub fn build(ctx: *const Context, llvm: *const LLVMExportedArtifacts) ClangExpor
         break :block lib;
     };
 
+    const analysis_flow_sensitive_resources = block: {
+        var opts = std.Build.ExecutableOptions{
+            .name = "bundle_resources",
+            .root_module = ctx.makeHostModule(),
+        };
+        opts.root_module.?.root_source_file = ctx.b.path("bundle_resources.zig");
+        const bundle_resources_exe = ctx.b.addExecutable(opts);
+
+        const runstep = ctx.b.addRunArtifact(bundle_resources_exe);
+        const out = runstep.addOutputFileArg("HTMLLogger.inc");
+        runstep.addFileArg(ctx.srcPath("clang/lib/Analysis/FlowSensitive/HTMLLogger.html"));
+        runstep.addFileArg(ctx.srcPath("clang/lib/Analysis/FlowSensitive/HTMLLogger.css"));
+        runstep.addFileArg(ctx.srcPath("clang/lib/Analysis/FlowSensitive/HTMLLogger.js"));
+        break :block out.path(ctx.b, "..");
+    };
+
+    const clang_analysis_flow_sensitive_lib = block: {
+        const lib = addClangLibrary(ctx, "clangAnalysisFlowSensitive", false);
+        lib.addCSourceFiles(.{
+            .root = ctx.clangLib("Analysis/FlowSensitive"),
+            .files = sources.clang_analysis_flow_sensitive_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+        Context.includeAll(lib, &.{
+            clang_tablegenerated_incs,
+            clang_phase2_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+            analysis_flow_sensitive_resources,
+        });
+        Context.linkAll(lib, &.{
+            clang_analysis_lib,
+            clang_ast_lib,
+            clang_ast_matchers_lib,
+            clang_basic_lib,
+            clang_lex_lib,
+        });
+        break :block lib;
+    };
+
+    const clang_analysis_flow_sensitive_models_lib = block: {
+        const lib = addClangLibrary(ctx, "clangAnalysisFlowSensitiveModels", false);
+        lib.addCSourceFiles(.{
+            .root = ctx.clangLib("Analysis/FlowSensitive/Models"),
+            .files = sources.clang_analysis_flow_sensitive_models_lib_cpp_files,
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+        Context.includeAll(lib, &.{
+            clang_tablegenerated_incs,
+            clang_phase2_tablegenerated_incs,
+            llvm.tablegenerated_incs,
+        });
+        Context.linkAll(lib, &.{
+            clang_analysis_lib,
+            clang_analysis_flow_sensitive_lib,
+            clang_ast_lib,
+            clang_ast_matchers_lib,
+            clang_basic_lib,
+        });
+        break :block lib;
+    };
+
     const clang_tooling_transformer_lib = block: {
         const lib = addClangLibrary(ctx, "clangToolingTransformer", false);
         lib.addCSourceFiles(.{
@@ -706,6 +771,7 @@ pub fn build(ctx: *const Context, llvm: *const LLVMExportedArtifacts) ClangExpor
         .format_lib = clang_format_lib,
         .lex_lib = clang_lex_lib,
         .tooling_core_lib = clang_tooling_core_lib,
+        .tooling_transformer_lib = clang_tooling_transformer_lib,
         .tooling_inclusions_lib = clang_tooling_inclusions_lib,
         .tooling_dependency_scanning_lib = clang_tooling_dependency_scanning_lib,
         .driver_lib = clang_driver_lib,
@@ -718,7 +784,8 @@ pub fn build(ctx: *const Context, llvm: *const LLVMExportedArtifacts) ClangExpor
         .tooling_inclusions_stdlib_lib = clang_tooling_inclusions_stdlib_lib,
         .rewrite_lib = clang_rewrite_lib,
         .analysis_lib = clang_analysis_lib,
-        .clang_tooling_transformer_lib = clang_tooling_transformer_lib,
+        .analysis_flow_sensitive_lib = clang_analysis_flow_sensitive_lib,
+        .analysis_flow_sensitive_models_lib = clang_analysis_flow_sensitive_models_lib,
 
         .version_inc = version_inc,
         .config_config_header = config_config_header,

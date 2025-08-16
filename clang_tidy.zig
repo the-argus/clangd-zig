@@ -131,31 +131,12 @@ pub fn build(ctx: *const Context, llvm: *const LLVMExportedArtifacts, clang: *co
             clang.lex_lib,
             clang.sema_lib,
             clang.tooling_lib,
-            clang.clang_tooling_transformer_lib,
+            clang.tooling_transformer_lib,
         });
         Context.configAll(lib, &.{config_header});
         Context.includeAll(lib, include_paths);
         break :block lib;
     };
-
-    // confusable gen header for misc_module
-    const confusable_table_gen = ctx.b.addExecutable(.{
-        .name = "clang-tidy-confusable-chars-gen",
-        .root_module = ctx.makeHostModule(),
-    });
-    confusable_table_gen.linkLibCpp();
-    confusable_table_gen.linkLibrary(llvm.host_component_support_lib);
-    llvm.includeAll(confusable_table_gen);
-    confusable_table_gen.addCSourceFiles(.{
-        .root = ctx.srcPath("clang-tools-extra/clang-tidy/misc/ConfusableTable"),
-        .files = &.{"BuildConfusableTable.cpp"},
-        .flags = ctx.dupeGlobalFlags(),
-        .language = .cpp,
-    });
-
-    const run_confusable_tablegen = ctx.b.addRunArtifact(confusable_table_gen);
-    run_confusable_tablegen.addFileArg(ctx.srcPath("clang-tools-extra/clang-tidy/misc/ConfusableTable/confusables.txt"));
-    const confusables_inc = run_confusable_tablegen.addOutputFileArg("Confusables.inc");
 
     // enough libraries for every module
     const module_libs = &.{
@@ -172,10 +153,7 @@ pub fn build(ctx: *const Context, llvm: *const LLVMExportedArtifacts, clang: *co
         clang.tooling_lib,
         clang.tooling_inclusions_lib,
         clang.tooling_inclusions_stdlib_lib,
-        // from bugprone module:
-        // TODO: clangAnalysisFlowSensitive
-        // TODO: clangAnalysisFlowSensitiveModels
-        clang.clang_tooling_transformer_lib,
+        clang.tooling_transformer_lib,
         include_cleaner_lib,
         clang_tidy_lib,
         clang_tidy_utils_lib,
@@ -213,10 +191,32 @@ pub fn build(ctx: *const Context, llvm: *const LLVMExportedArtifacts, clang: *co
             clang.includeAll(lib);
             Context.linkAll(lib, module_libs);
             Context.includeAll(lib, include_paths);
-            lib.addIncludePath(confusables_inc);
             modules.append(lib) catch @panic("OOM");
             modules_named.put(field.name, lib) catch @panic("hashmap put() failure");
         }
+    }
+
+    // confusable gen header for misc_module
+    {
+        const confusable_table_gen = ctx.b.addExecutable(.{
+            .name = "clang-tidy-confusable-chars-gen",
+            .root_module = ctx.makeHostModule(),
+        });
+        confusable_table_gen.linkLibCpp();
+        confusable_table_gen.linkLibrary(llvm.host_component_support_lib);
+        llvm.includeAll(confusable_table_gen);
+        confusable_table_gen.addCSourceFiles(.{
+            .root = ctx.srcPath("clang-tools-extra/clang-tidy/misc/ConfusableTable"),
+            .files = &.{"BuildConfusableTable.cpp"},
+            .flags = ctx.dupeGlobalFlags(),
+            .language = .cpp,
+        });
+
+        const run_confusable_tablegen = ctx.b.addRunArtifact(confusable_table_gen);
+        run_confusable_tablegen.addFileArg(ctx.srcPath("clang-tools-extra/clang-tidy/misc/ConfusableTable/confusables.txt"));
+        const confusables_inc = run_confusable_tablegen.addOutputFileArg("Confusables.inc");
+
+        modules_named.get("misc_module").?.addIncludePath(confusables_inc.path(ctx.b, ".."));
     }
 
     // inter-module deps
@@ -248,6 +248,10 @@ pub fn build(ctx: *const Context, llvm: *const LLVMExportedArtifacts, clang: *co
         modules_named.get("misc_module").?,
         modules_named.get("performance_module").?,
         modules_named.get("readability_module").?,
+    });
+    Context.linkAll(modules_named.get("bugprone_module").?, &.{
+        clang.analysis_flow_sensitive_lib,
+        clang.analysis_flow_sensitive_models_lib,
     });
 
     return ClangTidyExportedArifacts{
