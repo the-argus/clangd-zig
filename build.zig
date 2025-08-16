@@ -544,11 +544,6 @@ pub const Context = struct {
 };
 
 pub const LLVMSupportedTargets = struct {
-    all: LLVMALLTargets,
-    experimental: LLVMExperimentalTargets,
-};
-
-pub const LLVMALLTargets = struct {
     AArch64: bool = true,
     AMDGPU: bool = true,
     ARM: bool = true,
@@ -569,9 +564,6 @@ pub const LLVMALLTargets = struct {
     WebAssembly: bool = true,
     X86: bool = true,
     XCore: bool = true,
-};
-
-pub const LLVMExperimentalTargets = struct {
     ARC: bool = false,
     CSKY: bool = false,
     DirectX: bool = false,
@@ -665,28 +657,23 @@ pub fn build(b: *std.Build) !void {
         "Use zlib for compression/decompression. (default: true)",
     ) orelse true;
 
-    var supported_targets = LLVMSupportedTargets{
-        .all = .{},
-        .experimental = .{},
-    };
+    var supported_targets = LLVMSupportedTargets{};
 
     // go through all the fields and fill them out by creating options for them
-    inline for (@typeInfo(LLVMSupportedTargets).@"struct".fields) |field| {
-        inline for (@typeInfo(field.type).@"struct".fields) |target_option_field| {
-            // jumping through hoops here to do compile time toLower...
-            var array_fieldname: [target_option_field.name.len]u8 = undefined;
-            std.mem.copyForwards(u8, &array_fieldname, target_option_field.name);
-            array_fieldname = asciiToLower(array_fieldname.len, array_fieldname);
+    inline for (@typeInfo(LLVMSupportedTargets).@"struct".fields) |target_option_field| {
+        // jumping through hoops here to do compile time toLower...
+        var array_fieldname: [target_option_field.name.len]u8 = undefined;
+        std.mem.copyForwards(u8, &array_fieldname, target_option_field.name);
+        array_fieldname = asciiToLower(array_fieldname.len, array_fieldname);
 
-            @field(@field(supported_targets, field.name), target_option_field.name) = b.option(
-                bool,
-                b.fmt("support_{s}", .{&array_fieldname}),
-                std.fmt.comptimePrint(
-                    "Whether this build of LLVM should support generating code for the {s} platform. (default: {})",
-                    .{ target_option_field.name, target_option_field.defaultValue().? },
-                ),
-            ) orelse target_option_field.defaultValue().?;
-        }
+        @field(supported_targets, target_option_field.name) = b.option(
+            bool,
+            b.fmt("support_{s}", .{&array_fieldname}),
+            std.fmt.comptimePrint(
+                "Whether this build of LLVM should support generating code for the {s} platform. (default: {})",
+                .{ target_option_field.name, target_option_field.defaultValue().? },
+            ),
+        ) orelse target_option_field.defaultValue().?;
     }
 
     const llvm_project = b.dependency("llvm_project", .{});

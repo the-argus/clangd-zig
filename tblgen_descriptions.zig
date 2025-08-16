@@ -8,7 +8,7 @@ pub const ClangTablegenTarget = struct {
     folder: TablegenOutputFolder = .basic,
 };
 
-pub const TablegenOutputFolder = enum {
+pub const TablegenOutputFolder = union(enum) {
     basic,
     basic_root,
     ast,
@@ -23,6 +23,7 @@ pub const TablegenOutputFolder = enum {
     target_parser,
     parse,
     serialization,
+    custom: []const u8,
 
     pub fn toRelativePath(self: @This()) []const u8 {
         return switch (self) {
@@ -40,6 +41,7 @@ pub const TablegenOutputFolder = enum {
             .target_parser => "llvm/TargetParser",
             .parse => "clang/Parse",
             .serialization => "clang/Serialization",
+            .custom => |c| c,
         };
     }
 };

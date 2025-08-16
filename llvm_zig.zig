@@ -229,37 +229,32 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
     var mcas_writer = enum_mcas.writer();
 
     // add defines to config header for every field in supported targets structs
-    inline for (@typeInfo(@import("build.zig").LLVMSupportedTargets).@"struct".fields) |field| {
-        inline for (@typeInfo(field.type).@"struct".fields) |target_field| {
-            const field_name = std.fmt.comptimePrint("LLVM_HAS_{s}_TARGET", .{target_field.name});
-            const is_supported = @field(@field(
-                ctx.opts.supported_targets,
-                field.name,
-            ), target_field.name);
-            public_config_header.addValue(field_name, bool, is_supported);
+    inline for (@typeInfo(@import("build.zig").LLVMSupportedTargets).@"struct".fields) |target_field| {
+        const field_name = std.fmt.comptimePrint("LLVM_HAS_{s}_TARGET", .{target_field.name});
+        const is_supported = @field(ctx.opts.supported_targets, target_field.name);
+        public_config_header.addValue(field_name, bool, is_supported);
 
-            if (is_supported) {
-                const Set = std.static_string_map.StaticStringMap(void);
-                supported_targets_writer.print("LLVM_TARGET({s})\n", .{target_field.name}) catch @panic("OOM, or format error");
-                // NOTE: in normal LLVM there is a check to make sure llvm/lib/Target/${targetname}/*AsmPrinter.cpp exists,
-                // but all targets currently have one so we just skip that
-                asm_printers_writer.print("LLVM_ASM_PRINTER({s})\n", .{target_field.name}) catch @panic("OOM, or format error");
-                if (!Set.initComptime(.{ .{"ARC"}, .{"DirectX"}, .{"NVPTX"}, .{"SPIRV"}, .{"XCore"} }).has(target_field.name)) {
-                    asm_parsers_writer.print("LLVM_ASM_PARSER({s})\n", .{target_field.name}) catch @panic("OOM, or format error");
-                }
+        if (is_supported) {
+            const Set = std.static_string_map.StaticStringMap(void);
+            supported_targets_writer.print("LLVM_TARGET({s})\n", .{target_field.name}) catch @panic("OOM, or format error");
+            // NOTE: in normal LLVM there is a check to make sure llvm/lib/Target/${targetname}/*AsmPrinter.cpp exists,
+            // but all targets currently have one so we just skip that
+            asm_printers_writer.print("LLVM_ASM_PRINTER({s})\n", .{target_field.name}) catch @panic("OOM, or format error");
+            if (!Set.initComptime(.{ .{"ARC"}, .{"DirectX"}, .{"NVPTX"}, .{"SPIRV"}, .{"XCore"} }).has(target_field.name)) {
+                asm_parsers_writer.print("LLVM_ASM_PARSER({s})\n", .{target_field.name}) catch @panic("OOM, or format error");
+            }
 
-                if (!Set.initComptime(.{ .{"DirectX"}, .{"NVPTX"}, .{"SPIRV"} }).has(target_field.name)) {
-                    disassemblers_writer.print("LLVM_DISASSEMBLER({s})\n", .{target_field.name}) catch @panic("OOM, or format error");
-                }
+            if (!Set.initComptime(.{ .{"DirectX"}, .{"NVPTX"}, .{"SPIRV"} }).has(target_field.name)) {
+                disassemblers_writer.print("LLVM_DISASSEMBLER({s})\n", .{target_field.name}) catch @panic("OOM, or format error");
+            }
 
-                // inclusion list instead of exclusion
-                if (Set.initComptime(.{ .{"AMDGPU"}, .{"RISCV"}, .{"X86"} }).has(target_field.name)) {
-                    mcas_writer.print("LLVM_TARGETMCA({s})\n", .{target_field.name}) catch @panic("OOM, or format error");
-                }
+            // inclusion list instead of exclusion
+            if (Set.initComptime(.{ .{"AMDGPU"}, .{"RISCV"}, .{"X86"} }).has(target_field.name)) {
+                mcas_writer.print("LLVM_TARGETMCA({s})\n", .{target_field.name}) catch @panic("OOM, or format error");
+            }
 
-                if (Set.initComptime(.{ .{"AArch64"}, .{"Mips"}, .{"PowerPC"}, .{"RISCV"}, .{"X86"} }).has(target_field.name)) {
-                    exegesis_writer.print("LLVM_EXEGESIS({s})\n", .{target_field.name}) catch @panic("OOM, or format error");
-                }
+            if (Set.initComptime(.{ .{"AArch64"}, .{"Mips"}, .{"PowerPC"}, .{"RISCV"}, .{"X86"} }).has(target_field.name)) {
+                exegesis_writer.print("LLVM_EXEGESIS({s})\n", .{target_field.name}) catch @panic("OOM, or format error");
             }
         }
     }
@@ -1280,31 +1275,39 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         break :block lib;
     };
 
-    inline for (@typeInfo(@TypeOf(ctx.opts.supported_targets.all)).@"struct".fields) |field| {
-        const lib = addLLVMLibrary(ctx, .{
-            .name = "clangAllTargetsInfos",
-            .root_module = ctx.makeModule(),
-        });
+    var target_infos_map = std.StringArrayHashMap(*Compile).init(ctx.b.allocator);
+    const supported_targets_fields = @typeInfo(@TypeOf(ctx.opts.supported_targets)).@"struct".fields;
+    target_infos_map.ensureTotalCapacity(supported_targets_fields.len) catch @panic("OOM");
 
-        const path = ctx.llvmLib("Target/" ++ field.name);
-        lib.addCSourceFiles(.{
-            .root = path.path(ctx.b, "TargetInfo"),
-            .files = &.{field.name ++ "TargetInfo.cpp"},
-            .flags = ctx.dupeGlobalFlags(),
-            .language = .cpp,
-        });
+    inline for (supported_targets_fields) |field| {
+        if (@field(ctx.opts.supported_targets, field.name)) {
+            const lib = addLLVMLibrary(ctx, .{
+                .name = "clangAllTargetsInfos",
+                .root_module = ctx.makeModule(),
+            });
 
-        Context.linkAll(lib, &.{
-            llvm_mc_lib,
-            llvm_support_lib,
-            llvm_target_parser_lib, // DirectX wants this
-        });
-        Context.includeAll(lib, &.{
-            path,
-            tablegenerated_incs,
-        });
+            const path = ctx.llvmLib("Target/" ++ field.name);
+            lib.addCSourceFiles(.{
+                .root = path.path(ctx.b, "TargetInfo"),
+                .files = &.{field.name ++ "TargetInfo.cpp"},
+                .flags = ctx.dupeGlobalFlags(),
+                .language = .cpp,
+            });
 
-        all_targets_infos_lib.linkLibrary(lib);
+            Context.linkAll(lib, &.{
+                llvm_mc_lib,
+                llvm_support_lib,
+                llvm_target_parser_lib, // DirectX wants this
+            });
+            Context.includeAll(lib, &.{
+                path,
+                tablegenerated_incs,
+            });
+
+            all_targets_infos_lib.linkLibrary(lib);
+
+            target_infos_map.put(field.name, lib) catch @panic("OOM");
+        }
     }
 
     const support_blake3_lib = block: {
@@ -1404,6 +1407,69 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         break :block lib;
     };
+
+    // build all supported target libs
+    const target_tablegenerated_incs_map = @import("llvm_target_tablegen_descriptions.zig").generateTablesForAllTargets(host_component_tblgen_exe, ctx);
+
+    var tablegenerated_incs_iter = target_tablegenerated_incs_map.iterator();
+    while (tablegenerated_incs_iter.next()) |pair| {
+        const lib = addLLVMLibrary(ctx, .{
+            .name = ctx.b.fmt("llvmTarget_{s}", .{pair.key_ptr.*}),
+            .root_module = ctx.makeModule(),
+        });
+
+        const targets_sources = sources.targets_main_sources;
+        // just loop through all the fields of targets_sources and skip the ones that dont match :)
+        // (evil codegen)
+        inline for (@typeInfo(@TypeOf(targets_sources)).@"struct".fields) |sources_field| {
+            if (std.mem.eql(u8, sources_field.name, pair.key_ptr.*)) {
+                lib.addCSourceFiles(.{
+                    .root = ctx.llvmLib("Target/" ++ sources_field.name),
+                    .files = @field(targets_sources, sources_field.name),
+                    .flags = ctx.dupeGlobalFlags(),
+                    .language = .cpp,
+                });
+            }
+        }
+
+        // link [Archname]Info
+        const target_info_compile_step = target_infos_map.get(pair.key_ptr.*).?;
+        Context.linkAll(lib, &.{
+            target_info_compile_step,
+            llvm_analysis_lib,
+            // TODO: add these llvm dependencies
+            // llvm_asm_printer_lib,
+            // llvm_codegen_lib,
+            // llvm_codegen_types_lib,
+            llvm_core_lib,
+            // llvm_globalisel_lib
+            // llvm_ipo_lib
+            llvm_mc_lib,
+            llvm_transforms_scalar_lib,
+            // llvm_selection_dag_lib
+            llvm_support_lib,
+            // llvm_target_lib,
+            llvm_target_parser_lib,
+            llvm_transforms_utils_lib,
+            // llvm_vectorize_lib
+            // llvm_cfguard_lib
+            // llvm_irprinter_lib
+            // llvm_instrumentation_lib
+            llvm_profile_data_lib,
+            llvm_binary_format_lib,
+            llvm_demangle_lib,
+            // llvm_scalar_opts_lib,
+            // llvm_frontend_hlsl_lib,
+            // llvm_passes_lib
+            // llvm_hip_std_par_lib
+            // MIRParser
+        });
+
+        // include all tablgenerated includes for this target
+        Context.includeAll(lib, pair.value_ptr.*);
+
+        // TODO: export target libs, maybe into one lib? so clangd can have them
+    }
 
     return LLVMExportedArtifacts{
         .option_lib = llvm_option_lib,
