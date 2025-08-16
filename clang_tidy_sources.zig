@@ -1,4 +1,4 @@
-pub const abseil_module = &.{
+abseil_module: []const []const u8 = &.{
     "AbseilTidyModule.cpp",
     "CleanupCtadCheck.cpp",
     "DurationAdditionCheck.cpp",
@@ -20,18 +20,18 @@ pub const abseil_module = &.{
     "TimeComparisonCheck.cpp",
     "TimeSubtractionCheck.cpp",
     "UpgradeDurationConversionsCheck.cpp",
-};
+},
 
-pub const altera_module = &.{
+altera_module: []const []const u8 = &.{
     "AlteraTidyModule.cpp",
     "IdDependentBackwardBranchCheck.cpp",
     "KernelNameRestrictionCheck.cpp",
     "SingleWorkItemBarrierCheck.cpp",
     "StructPackAlignCheck.cpp",
     "UnrollLoopsCheck.cpp",
-};
+},
 
-pub const android_module = &.{
+android_module: []const []const u8 = &.{
     "AndroidTidyModule.cpp",
     "CloexecAccept4Check.cpp",
     "CloexecAcceptCheck.cpp",
@@ -49,15 +49,15 @@ pub const android_module = &.{
     "CloexecPipe2Check.cpp",
     "CloexecSocketCheck.cpp",
     "ComparisonInTempFailureRetryCheck.cpp",
-};
+},
 
-pub const boost_module = &.{
+boost_module: []const []const u8 = &.{
     "BoostTidyModule.cpp",
     "UseRangesCheck.cpp",
     "UseToStringCheck.cpp",
-};
+},
 
-pub const bugprone_module = &.{
+bugprone_module: []const []const u8 = &.{
     "ArgumentCommentCheck.cpp",
     "AssertSideEffectCheck.cpp",
     "AssignmentInIfConditionCheck.cpp",
@@ -152,9 +152,9 @@ pub const bugprone_module = &.{
     "UnusedReturnValueCheck.cpp",
     "UseAfterMoveCheck.cpp",
     "VirtualNearMissCheck.cpp",
-};
+},
 
-pub const cert_module = &.{
+cert_module: []const []const u8 = &.{
     "CERTTidyModule.cpp",
     "CommandProcessorCheck.cpp",
     "DefaultOperatorNewAlignmentCheck.cpp",
@@ -169,15 +169,15 @@ pub const cert_module = &.{
     "StrToNumCheck.cpp",
     "ThrownExceptionTypeCheck.cpp",
     "VariadicFunctionDefCheck.cpp",
-};
+},
 
-pub const concurrency = &.{
+concurrency_module: []const []const u8 = &.{
     "ConcurrencyTidyModule.cpp",
     "MtUnsafeCheck.cpp",
     "ThreadCanceltypeAsynchronousCheck.cpp",
-};
+},
 
-pub const cppcoreguidelines_module = &.{
+cppcoreguidelines_module: []const []const u8 = &.{
     "AvoidCapturingLambdaCoroutinesCheck.cpp",
     "AvoidConstOrRefDataMembersCheck.cpp",
     "AvoidDoWhileCheck.cpp",
@@ -208,15 +208,15 @@ pub const cppcoreguidelines_module = &.{
     "SlicingCheck.cpp",
     "SpecialMemberFunctionsCheck.cpp",
     "VirtualClassDestructorCheck.cpp",
-};
+},
 
-pub const darwin_modules = &.{
+darwin_module: []const []const u8 = &.{
     "AvoidSpinlockCheck.cpp",
     "DarwinTidyModule.cpp",
     "DispatchOnceNonstaticCheck.cpp",
-};
+},
 
-pub const fuchsia_module = &.{
+fuchsia_module: []const []const u8 = &.{
     "DefaultArgumentsCallsCheck.cpp",
     "DefaultArgumentsDeclarationsCheck.cpp",
     "FuchsiaTidyModule.cpp",
@@ -225,9 +225,9 @@ pub const fuchsia_module = &.{
     "StaticallyConstructedObjectsCheck.cpp",
     "TrailingReturnCheck.cpp",
     "VirtualInheritanceCheck.cpp",
-};
+},
 
-pub const google_module = &.{
+google_module: []const []const u8 = &.{
     "AvoidCStyleCastsCheck.cpp",
     "AvoidNSObjectNewCheck.cpp",
     "AvoidThrowingObjCExceptionCheck.cpp",
@@ -245,40 +245,40 @@ pub const google_module = &.{
     "UnnamedNamespaceInHeaderCheck.cpp",
     "UpgradeGoogletestCaseCheck.cpp",
     "UsingNamespaceDirectiveCheck.cpp",
-};
+},
 
-pub const hicpp_module = &.{
+hicpp_module: []const []const u8 = &.{
     "ExceptionBaseclassCheck.cpp",
     "HICPPTidyModule.cpp",
     "IgnoredRemoveResultCheck.cpp",
     "MultiwayPathsCoveredCheck.cpp",
     "NoAssemblerCheck.cpp",
     "SignedBitwiseCheck.cpp",
-};
+},
 
-pub const linuxkernel_module = &.{
+linuxkernel_module: []const []const u8 = &.{
     "LinuxKernelTidyModule.cpp",
     "MustCheckErrsCheck.cpp",
-};
+},
 
-pub const llvm_module = &.{
+llvm_module: []const []const u8 = &.{
     "HeaderGuardCheck.cpp",
     "IncludeOrderCheck.cpp",
     "LLVMTidyModule.cpp",
     "PreferIsaOrDynCastInConditionalsCheck.cpp",
     "PreferRegisterOverUnsignedCheck.cpp",
     "TwineLocalCheck.cpp",
-};
+},
 
-pub const llvmlibc_module = &.{
+llvmlibc_module: []const []const u8 = &.{
     "CalleeNamespaceCheck.cpp",
     "ImplementationInNamespaceCheck.cpp",
     "InlineFunctionDeclCheck.cpp",
     "LLVMLibcTidyModule.cpp",
     "RestrictSystemLibcHeadersCheck.cpp",
-};
+},
 
-pub const misc_module = &.{
+misc_module: []const []const u8 = &.{
     "ConstCorrectnessCheck.cpp",
     "CoroutineHostileRAIICheck.cpp",
     "DefinitionsInHeadersCheck.cpp",
@@ -303,15 +303,15 @@ pub const misc_module = &.{
     "UnusedUsingDeclsCheck.cpp",
     "UseAnonymousNamespaceCheck.cpp",
     "UseInternalLinkageCheck.cpp",
-};
+},
 
-pub const mpi_module = &.{
+mpi_module: []const []const u8 = &.{
     "BufferDerefCheck.cpp",
     "MPITidyModule.cpp",
     "TypeMismatchCheck.cpp",
-};
+},
 
-pub const objc_module = &.{
+objc_module: []const []const u8 = &.{
     "AssertEquals.cpp",
     "AvoidNSErrorInitCheck.cpp",
     "DeallocInCategoryCheck.cpp",
@@ -322,15 +322,15 @@ pub const objc_module = &.{
     "ObjCTidyModule.cpp",
     "PropertyDeclarationCheck.cpp",
     "SuperSelfCheck.cpp",
-};
+},
 
-pub const openmp_module = &.{
+openmp_module: []const []const u8 = &.{
     "ExceptionEscapeCheck.cpp",
     "OpenMPTidyModule.cpp",
     "UseDefaultNoneCheck.cpp",
-};
+},
 
-pub const performance_module = &.{
+performance_module: []const []const u8 = &.{
     "AvoidEndlCheck.cpp",
     "EnumSizeCheck.cpp",
     "FasterStringFindCheck.cpp",
@@ -352,21 +352,17 @@ pub const performance_module = &.{
     "TypePromotionInMathFnCheck.cpp",
     "UnnecessaryCopyInitialization.cpp",
     "UnnecessaryValueParamCheck.cpp",
-};
+},
 
-pub const plugin_module = &.{
-    "ClangTidyPlugin.cpp",
-};
-
-pub const portability = &.{
+portability_module: []const []const u8 = &.{
     "PortabilityTidyModule.cpp",
     "RestrictSystemIncludesCheck.cpp",
     "SIMDIntrinsicsCheck.cpp",
     "StdAllocatorConstCheck.cpp",
     "TemplateVirtualMemberFunctionCheck.cpp",
-};
+},
 
-pub const readability = &.{
+readability_module: []const []const u8 = &.{
     "AvoidConstParamsInDecls.cpp",
     "AvoidNestedConditionalOperatorCheck.cpp",
     "AvoidReturnWithVoidValueCheck.cpp",
@@ -421,39 +417,58 @@ pub const readability = &.{
     "UppercaseLiteralSuffixCheck.cpp",
     "UseAnyOfAllOfCheck.cpp",
     "UseStdMinMaxCheck.cpp",
-};
+},
 
-pub const tool_module = &.{
-    "ClangTidyMain.cpp",
-};
-
-pub const utils_module = &.{
-    "Aliasing.cpp",
-    "ASTUtils.cpp",
-    "BracesAroundStatement.cpp",
-    "DeclRefExprUtils.cpp",
-    "DesignatedInitializers.cpp",
-    "ExceptionAnalyzer.cpp",
-    "ExceptionSpecAnalyzer.cpp",
-    "ExprSequence.cpp",
-    "FileExtensionsUtils.cpp",
-    "FormatStringConverter.cpp",
-    "FixItHintUtils.cpp",
-    "HeaderGuard.cpp",
-    "IncludeInserter.cpp",
-    "IncludeSorter.cpp",
-    "LexerUtils.cpp",
-    "Matchers.cpp",
-    "NamespaceAliaser.cpp",
-    "OptionsUtils.cpp",
-    "RenamerClangTidyCheck.cpp",
-    "TransformerClangTidyCheck.cpp",
-    "TypeTraits.cpp",
+modernize_module: []const []const u8 = &.{
+    "AvoidBindCheck.cpp",
+    "AvoidCArraysCheck.cpp",
+    "ConcatNestedNamespacesCheck.cpp",
+    "DeprecatedHeadersCheck.cpp",
+    "DeprecatedIosBaseAliasesCheck.cpp",
+    "IntegralLiteralExpressionMatcher.cpp",
+    "LoopConvertCheck.cpp",
+    "LoopConvertUtils.cpp",
+    "MacroToEnumCheck.cpp",
+    "MakeSharedCheck.cpp",
+    "MakeSmartPtrCheck.cpp",
+    "MakeUniqueCheck.cpp",
+    "MinMaxUseInitializerListCheck.cpp",
+    "ModernizeTidyModule.cpp",
+    "PassByValueCheck.cpp",
+    "RawStringLiteralCheck.cpp",
+    "RedundantVoidArgCheck.cpp",
+    "ReplaceAutoPtrCheck.cpp",
+    "ReplaceDisallowCopyAndAssignMacroCheck.cpp",
+    "ReplaceRandomShuffleCheck.cpp",
+    "ReturnBracedInitListCheck.cpp",
+    "ShrinkToFitCheck.cpp",
+    "TypeTraitsCheck.cpp",
+    "UnaryStaticAssertCheck.cpp",
+    "UseAutoCheck.cpp",
+    "UseBoolLiteralsCheck.cpp",
+    "UseConstraintsCheck.cpp",
+    "UseDefaultMemberInitCheck.cpp",
+    "UseDesignatedInitializersCheck.cpp",
+    "UseEmplaceCheck.cpp",
+    "UseEqualsDefaultCheck.cpp",
+    "UseEqualsDeleteCheck.cpp",
+    "UseIntegerSignComparisonCheck.cpp",
+    "UseNodiscardCheck.cpp",
+    "UseNoexceptCheck.cpp",
+    "UseNullptrCheck.cpp",
+    "UseOverrideCheck.cpp",
     "UseRangesCheck.cpp",
-    "UsingInserter.cpp",
-};
+    "UseStartsEndsWithCheck.cpp",
+    "UseStdFormatCheck.cpp",
+    "UseStdNumbersCheck.cpp",
+    "UseStdPrintCheck.cpp",
+    "UseTrailingReturnTypeCheck.cpp",
+    "UseTransparentFunctorsCheck.cpp",
+    "UseUncaughtExceptionsCheck.cpp",
+    "UseUsingCheck.cpp",
+},
 
-pub const zircon_module = &.{
+zircon_module: []const []const u8 = &.{
     "TemporaryObjectsCheck.cpp",
     "ZirconTidyModule.cpp",
-};
+},

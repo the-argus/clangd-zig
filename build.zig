@@ -745,6 +745,7 @@ pub fn build(b: *std.Build) !void {
         clang.includeAll(lib);
         clang_tidy.includeAll(lib);
         lib.linkLibCpp();
+        Context.linkAll(lib, clang_tidy.clang_tidy_checks);
         Context.configAll(lib, clangd_config_headers);
         Context.includeAll(lib, clangd_include_paths);
         break :block lib;
