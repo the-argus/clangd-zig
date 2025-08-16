@@ -9,7 +9,7 @@ const Compile = std.Build.Step.Compile;
 const ABIBreakingChecks = Build.ABIBreakingChecks;
 const version = Build.version;
 const version_string = Build.version_string;
-const sources = @import("clangd_sources.zig");
+const sources = @import("llvm_sources.zig");
 
 pub const LLVMExportedArtifacts = struct {
     support_lib: *Compile,
@@ -443,7 +443,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("TableGen"),
-            .files = sources.llvm_tablegen_lib_cpp_files,
+            .files = sources.tablegen_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -459,7 +459,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.srcPath("llvm/utils/TableGen/Basic"),
-            .files = sources.llvm_tablegen_basic_lib_cpp_files,
+            .files = sources.tablegen_basic_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -477,7 +477,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         lib.addCSourceFiles(.{
             .root = ctx.srcPath("llvm/utils/TableGen"),
             .flags = ctx.dupeGlobalFlags(),
-            .files = sources.llvm_min_tablegen_cpp_files,
+            .files = sources.min_tablegen_cpp_files,
             .language = .cpp,
         });
         lib.addObject(host_component_tblgen_basic_lib);
@@ -501,7 +501,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmUtil("TableGen/Common"),
-            .files = sources.llvm_tablegen_common_lib_cpp_files,
+            .files = sources.tablegen_common_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -526,7 +526,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmUtil("TableGen"),
-            .files = sources.llvm_tablegen_cpp_files,
+            .files = sources.tablegen_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -556,7 +556,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("Option"),
-            .files = sources.llvm_option_lib_cpp_files,
+            .files = sources.option_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -576,7 +576,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("TargetParser"),
-            .files = sources.llvm_target_parser_lib_cpp_files,
+            .files = sources.target_parser_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -601,7 +601,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("BinaryFormat"),
-            .files = sources.llvm_binary_format_lib_cpp_files,
+            .files = sources.binary_format_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -624,7 +624,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("Bitstream/Reader"),
-            .files = sources.llvm_bitstream_reader_lib_cpp_files,
+            .files = sources.bitstream_reader_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -645,7 +645,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("Remarks"),
-            .files = sources.llvm_remarks_lib_cpp_files,
+            .files = sources.remarks_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -668,7 +668,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("IR"),
-            .files = sources.llvm_core_lib_cpp_files,
+            .files = sources.core_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -695,7 +695,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("Bitcode/Reader"),
-            .files = sources.llvm_bitcode_reader_lib_cpp_files,
+            .files = sources.bitcode_reader_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -720,7 +720,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("MC"),
-            .files = sources.llvm_mc_lib_cpp_files,
+            .files = sources.mc_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -744,7 +744,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("AsmParser"),
-            .files = sources.llvm_asm_parser_lib_cpp_files,
+            .files = sources.asm_parser_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -768,7 +768,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("IRReader"),
-            .files = sources.llvm_ir_reader_lib_cpp_files,
+            .files = sources.ir_reader_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -793,7 +793,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("MC/MCParser"),
-            .files = sources.llvm_mc_parser_lib_cpp_files,
+            .files = sources.mc_parser_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -817,7 +817,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("TextAPI"),
-            .files = sources.llvm_textapi_lib_cpp_files,
+            .files = sources.textapi_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -838,7 +838,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("Object"),
-            .files = sources.llvm_object_lib_cpp_files,
+            .files = sources.object_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -869,7 +869,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("DebugInfo/MSF"),
-            .files = sources.llvm_debug_info_msf_lib_cpp_files,
+            .files = sources.debug_info_msf_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -889,7 +889,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("DebugInfo/CodeView"),
-            .files = sources.llvm_debug_info_codeview_lib_cpp_files,
+            .files = sources.debug_info_codeview_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -906,7 +906,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("DebugInfo/BTF"),
-            .files = sources.llvm_debug_info_btf_lib_cpp_files,
+            .files = sources.debug_info_btf_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -926,7 +926,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("DebugInfo/PDB"),
-            .files = sources.llvm_debug_info_pdb_lib_cpp_files,
+            .files = sources.debug_info_pdb_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -935,7 +935,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         lib.addIncludePath(ctx.llvmInc("DebugInfo/PDB"));
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("DebugInfo/PDB"),
-            .files = sources.llvm_debug_info_pdb_native_folder_cpp_files,
+            .files = sources.debug_info_pdb_native_folder_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -962,7 +962,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("DebugInfo/DWARF"),
-            .files = sources.llvm_debug_info_dwarf_lib_cpp_files,
+            .files = sources.debug_info_dwarf_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -987,7 +987,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("DebugInfo/Symbolize"),
-            .files = sources.llvm_debug_info_symbolize_lib_cpp_files,
+            .files = sources.debug_info_symbolize_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -1012,7 +1012,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("ProfileData"),
-            .files = sources.llvm_profile_data_lib_cpp_files,
+            .files = sources.profile_data_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -1041,7 +1041,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("Analysis"),
-            .files = sources.llvm_analysis_lib_cpp_files,
+            .files = sources.analysis_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -1068,7 +1068,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("Transforms/Utils"),
-            .files = sources.llvm_transforms_utils_lib_cpp_files,
+            .files = sources.transforms_utils_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -1094,7 +1094,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("Frontend/Atomic"),
-            .files = sources.llvm_frontend_atomic_lib_cpp_files,
+            .files = sources.frontend_atomic_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -1120,7 +1120,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("Frontend/Offloading"),
-            .files = sources.llvm_frontend_offloading_lib_cpp_files,
+            .files = sources.frontend_offloading_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -1147,7 +1147,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("Transforms/AggressiveInstCombine"),
-            .files = sources.llvm_transforms_aggressive_inst_combine_lib_cpp_files,
+            .files = sources.transforms_aggressive_inst_combine_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -1173,7 +1173,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("Transforms/InstCombine"),
-            .files = sources.llvm_transforms_inst_combine_lib_cpp_files,
+            .files = sources.transforms_inst_combine_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -1199,7 +1199,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("Transforms/Scalar"),
-            .files = sources.llvm_transforms_scalar_lib_cpp_files,
+            .files = sources.transforms_scalar_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -1227,7 +1227,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("Frontend/OpenMP"),
-            .files = sources.llvm_frontend_openmp_lib_cpp_files,
+            .files = sources.frontend_openmp_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -1262,7 +1262,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         });
         lib.addCSourceFiles(.{
             .root = ctx.llvmLib("Target"),
-            .files = sources.llvm_target_lib_cpp_files,
+            .files = sources.target_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -1330,7 +1330,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         const root = ctx.llvmLib("WindowsDriver");
         lib.addCSourceFiles(.{
             .root = root,
-            .files = sources.llvm_windows_driver_lib_cpp_files,
+            .files = sources.windows_driver_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -1351,7 +1351,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         const root = ctx.llvmLib("MC/MCParser");
         lib.addCSourceFiles(.{
             .root = root,
-            .files = sources.llvm_mc_parser_lib_cpp_files,
+            .files = sources.mc_parser_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -1372,7 +1372,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         const root = ctx.llvmLib("MC/MCDisassembler");
         lib.addCSourceFiles(.{
             .root = root,
-            .files = sources.llvm_mc_disassembler_lib_cpp_files,
+            .files = sources.mc_disassembler_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -1392,7 +1392,7 @@ pub fn build(ctx: *const Context) LLVMExportedArtifacts {
         const root = ctx.llvmLib("AsmParser");
         lib.addCSourceFiles(.{
             .root = root,
-            .files = sources.llvm_asm_parser_lib_cpp_files,
+            .files = sources.asm_parser_lib_cpp_files,
             .flags = ctx.dupeGlobalFlags(),
             .language = .cpp,
         });
@@ -1523,13 +1523,13 @@ fn buildSupport(
 
     support_lib.addCSourceFiles(.{
         .language = .cpp,
-        .files = sources.llvm_support_lib_cpp_files,
+        .files = sources.support_lib_cpp_files,
         .root = ctx.llvmLib("Support"),
         .flags = flags.toOwnedSlice() catch @panic("OOM"),
     });
     support_lib.addCSourceFiles(.{
         .language = .c,
-        .files = sources.llvm_support_lib_c_files,
+        .files = sources.support_lib_c_files,
         .root = ctx.llvmLib("Support"),
         .flags = flags.toOwnedSlice() catch @panic("OOM"),
     });
